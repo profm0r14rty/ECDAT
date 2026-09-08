@@ -126,6 +126,9 @@ class DetectionRow(Base):
     detection_method: Mapped[str]
 
     scan: Mapped["ScanRun"] = relationship(back_populates="detections")
+    recommendations: Mapped[list["RecommendationRow"]] = relationship(
+        back_populates="detection"
+    )
 
 
 # ---------------------------------------------------------------------------
