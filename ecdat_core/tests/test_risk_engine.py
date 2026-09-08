@@ -79,6 +79,70 @@ class TestAssessRisk:
         assert result.threat_horizon_years == 0.0
         assert result.detection_id == det.id
 
+    def test_classically_broken_is_critical_not_quantum_safe(self):
+        """A classically-broken but not quantum-vulnerable artefact (MD5-like)
+        resolves to critical / mosca_violation=True, never "quantum-safe".
+
+        X/Y/Z are still computed via the normal heuristics for transparency,
+        but the naive urgency ratio is floored at 1.0. With a 20-year threat
+        horizon the naive ratio is (0.5 + 5.0) / 20.0 = 0.275, which must be
+        floored to exactly 1.0 — satisfying the Pydantic consistency
+        validator (mosca_violation == urgency_ratio >= 1.0).
+        """
+        det = Detection(**make_detection(
+            algorithm_family="MD5",
+            matched_text="hashlib.md5(b'data')",
+            quantum_vulnerable=False,
+            classically_broken=True,
+        ))
+        sig = SignatureEntry(**make_signature_entry(
+            name="MD5",
+            family="hash",
+            quantum_vulnerable=False,
+            classically_broken=True,
+            threat_horizon_years_default=20.0,
+            patterns={"python": ["hashlib\\.md5\\s*\\("]},
+            key_size_pattern=None,
+        ))
+        result = assess_risk(det, sig)
+
+        assert result.risk_level == "critical"
+        assert result.mosca_violation is True
+        assert result.urgency_ratio >= 1.0
+        assert result.urgency_ratio == pytest.approx(1.0)
+        assert result.migration_time_years == 0.5
+        assert result.shelf_life_years == 5.0
+        assert result.threat_horizon_years == pytest.approx(20.0)
+
+    def test_genuinely_quantum_safe_still_short_circuits(self):
+        """A genuinely quantum-safe detection (classically_broken=False,
+        quantum_vulnerable=False — e.g. AES-256) still short-circuits to
+        "quantum-safe" with a zeroed Mosca formula."""
+        det = Detection(**make_detection(
+            algorithm_family="AES",
+            matched_text="AES.new(key, AES.MODE_GCM)",
+            key_size_bits=256,
+            quantum_vulnerable=False,
+            classically_broken=False,
+        ))
+        sig = SignatureEntry(**make_signature_entry(
+            name="AES",
+            family="symmetric-encryption",
+            quantum_vulnerable=False,
+            classically_broken=False,
+            threat_horizon_years_default=15.0,
+            patterns={"python": ["AES\\.new\\s*\\("]},
+            key_size_pattern=None,
+        ))
+        result = assess_risk(det, sig)
+
+        assert result.risk_level == "quantum-safe"
+        assert result.mosca_violation is False
+        assert result.urgency_ratio == 0.0
+        assert result.migration_time_years == 0.0
+        assert result.shelf_life_years == 0.0
+        assert result.threat_horizon_years == 0.0
+
     def test_critical_rsa_1024_in_auth_path(self):
         """RSA-1024 in an auth path produces critical risk.
 

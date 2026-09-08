@@ -59,6 +59,14 @@ def assess_risk(
     The urgency ratio ``(X + Y) / Z`` quantifies the severity: values >= 1.0
     indicate that migration must already be underway.
 
+    Classically-broken artefacts (MD5, SHA-1, DES, 3DES, RC4) are broken today
+    by classical attacks, independent of quantum computing. They always resolve
+    to ``risk_level="critical"`` with ``mosca_violation=True`` and an urgency
+    ratio floored at 1.0 — this represents a classical break, **not** a
+    quantum-specific one, and such artefacts are never reported as
+    "quantum-safe". X/Y/Z are still computed via the normal heuristics so the
+    numbers remain visible for transparency.
+
     Args:
         detection: The detected cryptographic artefact to assess.
         signature_entry: The knowledge-base entry for this artefact's family,
@@ -77,7 +85,43 @@ def assess_risk(
             inconsistent (e.g. mosca_violation disagrees with urgency_ratio).
     """
     # ------------------------------------------------------------------
-    # 0. Quantum-safe short-circuit — no formula needed.
+    # 1. Classically-broken — critical, unconditionally.
+    #    MD5, SHA-1, DES, 3DES, RC4 are broken *today* by classical
+    #    attacks, independent of any quantum computer, so they must never
+    #    fall through to the quantum-safe short-circuit below. X/Y/Z are
+    #    still computed via the normal heuristics/overrides so the numbers
+    #    are visible for transparency, and the naive urgency ratio is
+    #    floored at 1.0 so the Pydantic consistency validator
+    #    (mosca_violation == urgency_ratio >= 1.0) holds with the forced
+    #    critical / mosca_violation=True classification.
+    # ------------------------------------------------------------------
+    if detection.classically_broken:
+        z = _adjusted_threat_horizon(detection, signature_entry)
+        if shelf_life_override is not None:
+            y = shelf_life_override
+        else:
+            y = _default_shelf_life(detection.file_path)
+        if migration_time_override is not None:
+            x = migration_time_override
+        else:
+            x = _default_migration_time(detection.asset_type)
+        naive_urgency_ratio = (x + y) / z
+        urgency_ratio = max(naive_urgency_ratio, 1.0)
+        return RiskAssessment(
+            detection_id=detection.id,
+            migration_time_years=x,
+            shelf_life_years=y,
+            threat_horizon_years=z,
+            urgency_ratio=urgency_ratio,
+            risk_level="critical",
+            mosca_violation=True,
+        )
+
+    # ------------------------------------------------------------------
+    # 2. Quantum-safe short-circuit — no formula needed. Only reachable
+    #    when classically_broken is False (branch 1 above already
+    #    returned), so a classically-broken-but-not-quantum-vulnerable
+    #    artefact can never be mislabelled "quantum-safe".
     # ------------------------------------------------------------------
     if not detection.quantum_vulnerable:
         return RiskAssessment(
@@ -91,12 +135,12 @@ def assess_risk(
         )
 
     # ------------------------------------------------------------------
-    # 1. Z — Threat horizon (years) with key-size adjustment.
+    # Z — Threat horizon (years) with key-size adjustment.
     # ------------------------------------------------------------------
     z = _adjusted_threat_horizon(detection, signature_entry)
 
     # ------------------------------------------------------------------
-    # 2. Y — Shelf life (years).
+    # Y — Shelf life (years).
     # ------------------------------------------------------------------
     if shelf_life_override is not None:
         y = shelf_life_override
@@ -104,7 +148,7 @@ def assess_risk(
         y = _default_shelf_life(detection.file_path)
 
     # ------------------------------------------------------------------
-    # 3. X — Migration time (years).
+    # X — Migration time (years).
     # ------------------------------------------------------------------
     if migration_time_override is not None:
         x = migration_time_override
