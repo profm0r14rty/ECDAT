@@ -214,6 +214,7 @@ def _build_component(
     # --- properties ---
     properties = [
         {"name": "ecdat:quantumVulnerable", "value": str(detection.quantum_vulnerable)},
+        {"name": "ecdat:classicallyBroken", "value": str(detection.classically_broken)},
         {"name": "ecdat:riskLevel", "value": ra.risk_level if ra else ""},
         {"name": "ecdat:confidence", "value": str(detection.confidence)},
         {"name": "ecdat:recommendedAlgorithm", "value": rec.recommended_algorithm if rec else ""},

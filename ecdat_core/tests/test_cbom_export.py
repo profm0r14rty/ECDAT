@@ -62,6 +62,21 @@ _DET_AES = Detection(
     detection_method="regex",
 )
 
+_DET_MD5 = Detection(
+    id="det-md5-1",
+    file_path="src/utils/hasher.py",
+    line_number=1,
+    matched_text="hashlib.md5()",
+    asset_type="algorithm",
+    algorithm_family="MD5",
+    key_size_bits=None,
+    quantum_vulnerable=False,
+    classically_broken=True,
+    confidence=1.0,
+    language="python",
+    detection_method="regex",
+)
+
 _RA_RSA = RiskAssessment(
     detection_id="det-rsa-1",
     migration_time_years=0.5,
@@ -92,6 +107,16 @@ _RA_AES = RiskAssessment(
     mosca_violation=False,
 )
 
+_RA_MD5 = RiskAssessment(
+    detection_id="det-md5-1",
+    migration_time_years=0.5,
+    shelf_life_years=5.0,
+    threat_horizon_years=15.0,
+    urgency_ratio=1.0,
+    risk_level="critical",
+    mosca_violation=True,
+)
+
 _REC_RSA = Recommendation(
     detection_id="det-rsa-1",
     recommended_algorithm="ML-KEM-768 (Kyber)",
@@ -119,12 +144,21 @@ _REC_AES = Recommendation(
     migration_note="No migration needed.",
 )
 
+_REC_MD5 = Recommendation(
+    detection_id="det-md5-1",
+    recommended_algorithm="SHA-256 / SHA-3",
+    fips_reference="FIPS 203",
+    rationale="MD5 is classically broken; migrate to SHA-256.",
+    latency_note="Larger signatures/keys.",
+    migration_note="Replace MD5 with SHA-256.",
+)
+
 _SCAN_RESULT = ScanResult(
     scan_id="scan-test-001",
     target="/home/user/myproject",
-    detections=[_DET_RSA, _DET_SHA, _DET_AES],
-    risk_assessments=[_RA_RSA, _RA_SHA, _RA_AES],
-    recommendations=[_REC_RSA, _REC_SHA, _REC_AES],
+    detections=[_DET_RSA, _DET_SHA, _DET_AES, _DET_MD5],
+    risk_assessments=[_RA_RSA, _RA_SHA, _RA_AES, _RA_MD5],
+    recommendations=[_REC_RSA, _REC_SHA, _REC_AES, _REC_MD5],
     scanned_at="2026-09-08T12:00:00Z",
 )
 
@@ -193,6 +227,7 @@ class TestExportCbom:
         """Every component has all five ecdat property names."""
         required = {
             "ecdat:quantumVulnerable",
+            "ecdat:classicallyBroken",
             "ecdat:riskLevel",
             "ecdat:confidence",
             "ecdat:recommendedAlgorithm",
@@ -277,21 +312,21 @@ class TestExportSummary:
     def test_total_detections(self) -> None:
         """Total detections matches the scan result."""
         result = export_summary(_SCAN_RESULT)
-        assert result["total_detections"] == 3
+        assert result["total_detections"] == 4
 
     def test_quantum_vulnerable_counts(self) -> None:
         """Quantum-vulnerable count and percentage are correct."""
         result = export_summary(_SCAN_RESULT)
         assert result["quantum_vulnerable_count"] == 2
         assert result["quantum_vulnerable_percentage"] == pytest.approx(
-            2 / 3 * 100
+            2 / 4 * 100
         )
 
     def test_risk_level_counts(self) -> None:
         """Risk level counts match the test data."""
         result = export_summary(_SCAN_RESULT)
         rl = result["risk_level_counts"]
-        assert rl["critical"] == 1
+        assert rl["critical"] == 2
         assert rl["low"] == 1
         assert rl["quantum-safe"] == 1
         assert rl["high"] == 0
@@ -304,12 +339,13 @@ class TestExportSummary:
         assert fc["RSA"] == 1
         assert fc["SHA"] == 1
         assert fc["AES"] == 1
+        assert fc["MD5"] == 1
 
     def test_top_5_urgency(self) -> None:
         """Top-5 urgency list has correct length and highest-urgency first."""
         result = export_summary(_SCAN_RESULT)
         top = result["top_5_urgency"]
-        assert len(top) == 3  # only 3 detections, less than limit of 5
+        assert len(top) == 4  # now 4 detections, less than limit of 5
         assert top[0]["detection_id"] == "det-rsa-1"
 
     def test_top_5_urgency_sorted_descending(self) -> None:

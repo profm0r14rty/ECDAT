@@ -62,3 +62,23 @@ def test_exported_cbom_structure(scan_result) -> None:
         component["type"] == "cryptographic-asset"
         for component in cbom["components"]
     )
+
+
+def test_at_least_two_critical_detections_with_classically_broken_distinction(
+    scan_result,
+) -> None:
+    """At least 2 distinct critical detections with differing classically_broken values.
+
+    The Mosca-violation critical (RSA-1024) has classically_broken=False,
+    while classically-broken artefacts (MD5, DES) have classically_broken=True.
+    """
+    critical_ras = [ra for ra in scan_result.risk_assessments if ra.risk_level == "critical"]
+    assert len(critical_ras) >= 2
+
+    classically_broken_status = {}
+    for ra in critical_ras:
+        det = next(det for det in scan_result.detections if det.id == ra.detection_id)
+        classically_broken_status[ra.detection_id] = det.classically_broken
+
+    assert any(classically_broken_status.values())
+    assert any(v is False for v in classically_broken_status.values())
