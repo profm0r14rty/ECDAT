@@ -138,3 +138,4 @@ class ScanResult(BaseModel):
     risk_assessments: list[RiskAssessment]
     recommendations: list[Recommendation]
     scanned_at: str  # ISO timestamp
+    files_scanned: int = 0
