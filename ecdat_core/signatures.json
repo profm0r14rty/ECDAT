@@ -1,0 +1,643 @@
+[
+  {
+    "name": "RSA",
+    "family": "asymmetric-encryption",
+    "quantum_vulnerable": true,
+    "threat_horizon_years_default": 15,
+    "patterns": {
+      "python": [
+        "RSA\\.generate\\s*\\(",
+        "from\\s+cryptography\\.hazmat\\.primitives\\.asymmetric\\s+import\\s+.*\\bRSA\\b",
+        "rsa\\.newkeys\\s*\\("
+      ],
+      "javascript": [
+        "crypto\\.generateKeyPairSync\\([^)]*['\"](rsa|rsa-pss)['\"]",
+        "crypto\\.generateKeyPair\\([^)]*['\"](rsa|rsa-pss)['\"]",
+        "new\\s+JSEncrypt\\s*\\("
+      ],
+      "java": [
+        "KeyPairGenerator\\.getInstance\\s*\\(\\s*[\"']RSA[\"']\\s*\\)",
+        "Cipher\\.getInstance\\s*\\(\\s*[\"']RSA/",
+        "AlgorithmParameterGenerator\\.getInstance\\s*\\(\\s*[\"']RSA[\"']\\s*\\)"
+      ],
+      "go": [
+        "rsa\\.GenerateKey\\s*\\(",
+        "rsa\\.GenerateMultiPrimeKey\\s*\\(",
+        "x509\\.ParsePKCS1PublicKey\\s*\\(",
+        "x509\\.ParsePKCS1PrivateKey\\s*\\("
+      ],
+      "c_cpp": [
+        "RSA_generate_key\\s*\\(",
+        "RSA_new\\s*\\(",
+        "EVP_PKEY_RSA\\b",
+        "RSA_generate_key_ex\\s*\\("
+      ]
+    },
+    "key_size_pattern": "(?:RSA\\.generate\\s*\\(\\s*|rsa\\.newkeys\\s*\\(\\s*|rsa\\.GenerateKey\\(rand,\\s*|RSA_generate_key\\s*\\(\\s*|RSA_generate_key_ex\\s*\\([^,]+,\\s*)(\\d{3,4})",
+    "pqc_recommendation": {
+      "algorithm": "ML-KEM (FIPS 203)",
+      "fips_reference": "FIPS 203",
+      "rationale": "RSA key exchange and encryption are broken by Shor's algorithm on a sufficiently large quantum computer. ML-KEM is the NIST-selected KEM for post-quantum key establishment. For RSA signatures, migrate to ML-DSA (FIPS 204), with SLH-DSA (FIPS 205) as the conservative hash-based alternative.",
+      "latency_note": "ML-KEM key generation and encapsulation are typically faster than RSA but produce larger ciphertexts and keys.",
+      "migration_note": "Replace RSA key generation/encryption with ML-KEM key encapsulation; update certificate formats and TLS configuration."
+    }
+  },
+  {
+    "name": "DH",
+    "family": "asymmetric-encryption",
+    "quantum_vulnerable": true,
+    "threat_horizon_years_default": 15,
+    "patterns": {
+      "python": [
+        "DH\\.generate_parameters\\s*\\(",
+        "from\\s+cryptography\\.hazmat\\.primitives\\.asymmetric\\s+import\\s+.*\\bDH\\b",
+        "DiffieHellman\\b"
+      ],
+      "javascript": [
+        "crypto\\.createDiffieHellman\\s*\\(",
+        "crypto\\.getDiffieHellman\\s*\\("
+      ],
+      "java": [
+        "KeyPairGenerator\\.getInstance\\s*\\(\\s*[\"']DH[\"']\\s*\\)",
+        "AlgorithmParameterGenerator\\.getInstance\\s*\\(\\s*[\"']DH[\"']\\s*\\)"
+      ],
+      "go": [
+        "dh\\.GenerateKey\\b",
+        "DH\\b"
+      ],
+      "c_cpp": [
+        "DH_new\\s*\\(",
+        "DH_generate_key\\s*\\(",
+        "EVP_PKEY_DH\\b"
+      ]
+    },
+    "key_size_pattern": null,
+    "pqc_recommendation": {
+      "algorithm": "ML-KEM (FIPS 203)",
+      "fips_reference": "FIPS 203",
+      "rationale": "Classic Diffie-Hellman key exchange is vulnerable to Shor's algorithm. ML-KEM is the NIST-selected KEM for post-quantum key establishment and the recommended replacement.",
+      "latency_note": "ML-KEM offers efficient encapsulation with modest performance overhead versus classic DH.",
+      "migration_note": "Adopt hybrid key exchange (classic DH + ML-KEM) during transition, then drop classic DH."
+    }
+  },
+  {
+    "name": "ECDH",
+    "family": "asymmetric-encryption",
+    "quantum_vulnerable": true,
+    "threat_horizon_years_default": 15,
+    "patterns": {
+      "python": [
+        "ECDH\\.generate\\s*\\(",
+        "from\\s+cryptography\\.hazmat\\.primitives\\.asymmetric\\.ec\\s+import\\s+.*\\bECDH\\b",
+        "ec\\.generate_private_key\\s*\\([^)]*SECP"
+      ],
+      "javascript": [
+        "crypto\\.createECDH\\s*\\(",
+        "ecdh\\.generateKeys\\s*\\(",
+        "generateKeyPairSync\\([^)]*['\"]ec['\"]"
+      ],
+      "java": [
+        "KeyAgreement\\.getInstance\\s*\\(\\s*[\"']ECDH[\"']\\s*\\)",
+        "KeyPairGenerator\\.getInstance\\s*\\(\\s*[\"']EC[\"']\\s*\\)"
+      ],
+      "go": [
+        "ecdh\\.P256\\s*\\(",
+        "ecdh\\.P384\\s*\\(",
+        "ecdh\\.P521\\s*\\(",
+        "elliptic\\.P256\\(\\)",
+        "ecdsa\\.GenerateKey\\b"
+      ],
+      "c_cpp": [
+        "EVP_PKEY_EC\\b",
+        "EC_KEY_new\\s*\\(",
+        "ECDH_compute_key\\s*\\("
+      ]
+    },
+    "key_size_pattern": null,
+    "pqc_recommendation": {
+      "algorithm": "ML-KEM (FIPS 203)",
+      "fips_reference": "FIPS 203",
+      "rationale": "Elliptic-curve Diffie-Hellman key exchange is broken by Shor's algorithm. ML-KEM is the NIST-selected KEM for post-quantum key establishment and the recommended replacement.",
+      "latency_note": "ML-KEM has comparable or better CPU performance than ECDH but larger public keys and ciphertexts.",
+      "migration_note": "Use hybrid ECDH+ML-KEM key exchange during migration to preserve forward secrecy against harvest-now-decrypt-later."
+    }
+  },
+  {
+    "name": "ECDSA",
+    "family": "signature",
+    "quantum_vulnerable": true,
+    "threat_horizon_years_default": 15,
+    "patterns": {
+      "python": [
+        "ECDSA\\.generate\\s*\\(",
+        "from\\s+cryptography\\.hazmat\\.primitives\\.asymmetric\\.ec\\s+import\\s+.*\\bECDSA\\b",
+        "ec\\.generate_private_key\\s*\\(",
+        "\\becdsa\\b"
+      ],
+      "javascript": [
+        "crypto\\.sign\\s*\\([^)]*['\"](sha256|sha384)['\"][^)]*ecdsa",
+        "generateKeyPairSync\\([^)]*['\"]ec['\"]",
+        "\\bECDSA\\b",
+        "elliptic\\.\\s*ec\\s*\\("
+      ],
+      "java": [
+        "Signature\\.getInstance\\s*\\(\\s*[\"'](?:SHA\\d+with|NONEwith)ECDSA[\"']\\s*\\)",
+        "KeyPairGenerator\\.getInstance\\s*\\(\\s*[\"']EC[\"']\\s*\\)"
+      ],
+      "go": [
+        "ecdsa\\.GenerateKey\\s*\\(",
+        "ecdsa\\.Sign\\s*\\(",
+        "ecdsa\\.Verify\\s*\\(",
+        "elliptic\\.P256\\(\\)"
+      ],
+      "c_cpp": [
+        "ECDSA_sign\\s*\\(",
+        "ECDSA_verify\\s*\\(",
+        "ECDSA_do_sign\\s*\\(",
+        "EVP_PKEY_EC\\b"
+      ]
+    },
+    "key_size_pattern": null,
+    "pqc_recommendation": {
+      "algorithm": "ML-DSA (FIPS 204)",
+      "fips_reference": "FIPS 204",
+      "rationale": "ECDSA signatures are broken by Shor's algorithm. ML-DSA is the NIST-selected lattice-based signature scheme. For a conservative hash-based alternative, consider SLH-DSA (FIPS 205).",
+      "latency_note": "ML-DSA signing is fast; verification is slower and signatures are larger (2.4-4.6 KB) than ECDSA.",
+      "migration_note": "Update certificate and signature verification stacks to accept ML-DSA; consider SLH-DSA where hash-based assurance is preferred."
+    }
+  },
+  {
+    "name": "DSA",
+    "family": "signature",
+    "quantum_vulnerable": true,
+    "threat_horizon_years_default": 15,
+    "patterns": {
+      "python": [
+        "DSA\\.generate\\s*\\(",
+        "from\\s+cryptography\\.hazmat\\.primitives\\.asymmetric\\s+import\\s+.*\\bDSA\\b",
+        "dsa\\.generate_private_key\\s*\\("
+      ],
+      "javascript": [
+        "crypto\\.generateKeyPairSync\\([^)]*['\"]dsa['\"]",
+        "crypto\\.sign\\s*\\([^)]*['\"]dsa['\"]"
+      ],
+      "java": [
+        "Signature\\.getInstance\\s*\\(\\s*[\"'](?:SHA\\d+with|NONEwith)DSA[\"']\\s*\\)",
+        "KeyPairGenerator\\.getInstance\\s*\\(\\s*[\"']DSA[\"']\\s*\\)"
+      ],
+      "go": [
+        "dsa\\.GenerateKey\\s*\\(",
+        "dsa\\.Sign\\b",
+        "dsa\\.Verify\\b"
+      ],
+      "c_cpp": [
+        "DSA_generate_key\\s*\\(",
+        "DSA_new\\s*\\(",
+        "DSA_sign\\s*\\(",
+        "EVP_PKEY_DSA\\b"
+      ]
+    },
+    "key_size_pattern": "(?:DSA\\.generate\\s*\\(\\s*|dsa\\.generate_private_key\\s*\\(\\s*key_size=\\s*|dsa\\.GenerateKey\\(\\s*params.*key_size|DSA_generate_key\\s*\\()[\\w.]*(\\d{3,4})",
+    "pqc_recommendation": {
+      "algorithm": "ML-DSA (FIPS 204)",
+      "fips_reference": "FIPS 204",
+      "rationale": "DSA signatures are broken by Shor's algorithm. ML-DSA is the NIST-selected lattice-based signature scheme. For a conservative hash-based alternative, consider SLH-DSA (FIPS 205).",
+      "latency_note": "ML-DSA signatures are larger than DSA but verification is generally acceptable for most workloads.",
+      "migration_note": "Migrate signature verification to ML-DSA; DSA is deprecated in most toolchains and should be phased out."
+    }
+  },
+  {
+    "name": "ECC generic key generation",
+    "family": "asymmetric-encryption",
+    "quantum_vulnerable": true,
+    "threat_horizon_years_default": 15,
+    "patterns": {
+      "python": [
+        "ec\\.generate_private_key\\s*\\(",
+        "from\\s+cryptography\\.hazmat\\.primitives\\.asymmetric\\s+import\\s+.*\\bEC\\b",
+        "SECP256R1\\b",
+        "SECP384R1\\b",
+        "SECP521R1\\b"
+      ],
+      "javascript": [
+        "generateKeyPairSync\\([^)]*['\"]ec['\"]",
+        "crypto\\.createECDH\\s*\\(",
+        "\\bsecp256k1\\b"
+      ],
+      "java": [
+        "KeyPairGenerator\\.getInstance\\s*\\(\\s*[\"']EC[\"']\\s*\\)",
+        "ECGenParameterSpec\\s*\\(",
+        "\\bsecp256r1\\b",
+        "\\bsecp256k1\\b"
+      ],
+      "go": [
+        "elliptic\\.(P224|P256|P384|P521)\\s*\\(\\s*\\)",
+        "ecdh\\.P256\\s*\\(",
+        "ecdsa\\.GenerateKey\\s*\\("
+      ],
+      "c_cpp": [
+        "EC_KEY_new_by_curve_name\\s*\\(",
+        "EVP_PKEY_EC\\b",
+        "NID_X9_62_prime256v1\\b",
+        "NID_secp384r1\\b"
+      ]
+    },
+    "key_size_pattern": "(?:elliptic\\.P(\\d{3})\\s*\\(\\s*\\)|generate_private_key\\s*\\([^)]*curve\\s*\\([^)]*(R|r)(\\d{3,4}))",
+    "pqc_recommendation": {
+      "algorithm": "ML-KEM (FIPS 203) / ML-DSA (FIPS 204)",
+      "fips_reference": "FIPS 203",
+      "rationale": "Generic elliptic-curve key generation underpins ECDH/ECDSA, both broken by Shor's algorithm. Replace key exchange with ML-KEM (FIPS 203) and signatures with ML-DSA (FIPS 204); SLH-DSA (FIPS 205) is a conservative hash-based alternative for signatures.",
+      "latency_note": "ML-KEM and ML-DSA have acceptable latency but produce larger keys and signatures than ECC.",
+      "migration_note": "Audit all uses of generic EC key generation to determine whether they feed key exchange or signatures, then migrate accordingly."
+    }
+  },
+  {
+    "name": "MD5",
+    "family": "hash",
+    "quantum_vulnerable": false,
+    "threat_horizon_years_default": 1,
+    "patterns": {
+      "python": [
+        "hashlib\\.md5\\s*\\(",
+        "md5\\s*\\(",
+        "\\bMD5\\b"
+      ],
+      "javascript": [
+        "crypto\\.createHash\\s*\\(\\s*['\"]md5['\"]\\s*\\)",
+        "\\bmd5\\b",
+        "from\\s+['\"](?:crypto-js/md5|md5)['\"]"
+      ],
+      "java": [
+        "MessageDigest\\.getInstance\\s*\\(\\s*[\"']MD5[\"']\\s*\\)",
+        "\\bMD5\\b"
+      ],
+      "go": [
+        "crypto/md5\"",
+        "md5\\.New\\s*\\(",
+        "md5\\.Sum\\s*\\("
+      ],
+      "c_cpp": [
+        "EVP_md5\\s*\\(",
+        "MD5_Init\\s*\\(",
+        "MD5_Update\\s*\\(",
+        "MD5_Final\\s*\\(",
+        "\\bMD5\\b"
+      ]
+    },
+    "key_size_pattern": null,
+    "pqc_recommendation": {
+      "algorithm": "SHA-256 / SHA-3",
+      "fips_reference": "N/A (classical collision weakness, not quantum-specific)",
+      "rationale": "MD5 has broken collision resistance and is unsuitable for any security-sensitive use, independent of quantum computing. Replace with a modern collision-resistant hash such as SHA-256 or SHA-3.",
+      "latency_note": "SHA-256 and SHA-3 are computationally comparable to MD5 in most workloads.",
+      "migration_note": "Replace all MD5 usage (checksums, HMAC, signatures) with SHA-256 or SHA-3; do not use MD5 even in non-security contexts."
+    }
+  },
+  {
+    "name": "SHA-1",
+    "family": "hash",
+    "quantum_vulnerable": false,
+    "threat_horizon_years_default": 1,
+    "patterns": {
+      "python": [
+        "hashlib\\.sha1\\s*\\(",
+        "sha1\\s*\\(",
+        "\\bSHA1\\b",
+        "\\bSHA-1\\b"
+      ],
+      "javascript": [
+        "crypto\\.createHash\\s*\\(\\s*['\"]sha1['\"]\\s*\\)",
+        "\\bsha1\\b",
+        "\\bSHA-1\\b"
+      ],
+      "java": [
+        "MessageDigest\\.getInstance\\s*\\(\\s*[\"']SHA-1[\"']\\s*\\)",
+        "\\bSHA-1\\b",
+        "\\bSHA1\\b"
+      ],
+      "go": [
+        "crypto/sha1\"",
+        "sha1\\.New\\s*\\(",
+        "sha1\\.Sum\\s*\\("
+      ],
+      "c_cpp": [
+        "EVP_sha1\\s*\\(",
+        "SHA1_Init\\s*\\(",
+        "SHA1_Update\\s*\\(",
+        "SHA1_Final\\s*\\(",
+        "\\bSHA-1\\b",
+        "\\bSHA1\\b"
+      ]
+    },
+    "key_size_pattern": null,
+    "pqc_recommendation": {
+      "algorithm": "SHA-256 / SHA-3",
+      "fips_reference": "N/A (classical collision weakness, not quantum-specific)",
+      "rationale": "SHA-1 has demonstrated collision attacks and is deprecated across major toolchains, independent of quantum computing. Replace with SHA-256 or SHA-3.",
+      "latency_note": "SHA-256 is a direct drop-in with negligible performance difference.",
+      "migration_note": "Replace SHA-1 in signatures, certificates, and hashing with SHA-256 or SHA-3; move immediately due to collision attacks."
+    }
+  },
+  {
+    "name": "DES",
+    "family": "symmetric-encryption",
+    "quantum_vulnerable": false,
+    "threat_horizon_years_default": 1,
+    "patterns": {
+      "python": [
+        "DES\\.new\\s*\\(",
+        "from\\s+Crypto\\.Cipher\\s+import\\s+.*\\bDES\\b",
+        "\\bDES\\b(?![-_])"
+      ],
+      "javascript": [
+        "crypto\\.createCipheriv\\s*\\(\\s*['\"]des-",
+        "des-ecb\\b",
+        "des-cbc\\b"
+      ],
+      "java": [
+        "Cipher\\.getInstance\\s*\\(\\s*[\"']DES[\"']\\s*\\)",
+        "Cipher\\.getInstance\\s*\\(\\s*[\"']DES/",
+        "SecretKeyFactory\\.getInstance\\s*\\(\\s*[\"']DES[\"']\\s*\\)"
+      ],
+      "go": [
+        "des\\.NewCipher\\s*\\(",
+        "crypto/des\""
+      ],
+      "c_cpp": [
+        "DES_set_key\\s*\\(",
+        "DES_ecb_encrypt\\s*\\(",
+        "DES_ncbc_encrypt\\s*\\(",
+        "EVP_des_cbc\\s*\\("
+      ]
+    },
+    "key_size_pattern": null,
+    "pqc_recommendation": {
+      "algorithm": "AES-256-GCM",
+      "fips_reference": "N/A",
+      "rationale": "DES uses a 56-bit key that is trivially brute-forceable and is considered broken in classical computing. Replace with an authenticated modern cipher: AES-256-GCM.",
+      "latency_note": "AES-256-GCM is hardware-accelerated and faster than DES on modern CPUs.",
+      "migration_note": "Replace DES encryption with AES-256-GCM, adding authentication and nonce management."
+    }
+  },
+  {
+    "name": "3DES",
+    "family": "symmetric-encryption",
+    "quantum_vulnerable": false,
+    "threat_horizon_years_default": 1,
+    "patterns": {
+      "python": [
+        "DES3\\.new\\s*\\(",
+        "from\\s+Crypto\\.Cipher\\s+import\\s+.*\\bDES3\\b",
+        "\\b3DES\\b",
+        "\\bTripleDES\\b"
+      ],
+      "javascript": [
+        "crypto\\.createCipheriv\\s*\\(\\s*['\"]des-ede3",
+        "des-ede3-cbc\\b",
+        "\\btripledes\\b"
+      ],
+      "java": [
+        "Cipher\\.getInstance\\s*\\(\\s*[\"']DESede[\"']\\s*\\)",
+        "Cipher\\.getInstance\\s*\\(\\s*[\"']DESede/",
+        "SecretKeyFactory\\.getInstance\\s*\\(\\s*[\"']DESede[\"']\\s*\\)"
+      ],
+      "go": [
+        "des\\.NewTripleDESCipher\\s*\\(",
+        "\\bTripleDES\\b"
+      ],
+      "c_cpp": [
+        "DES_ecb3_encrypt\\s*\\(",
+        "DES_ede3_cbc_encrypt\\s*\\(",
+        "EVP_des_ede3_cbc\\s*\\("
+      ]
+    },
+    "key_size_pattern": null,
+    "pqc_recommendation": {
+      "algorithm": "AES-256-GCM",
+      "fips_reference": "N/A",
+      "rationale": "Triple DES, while offering a 112-bit effective key, is slow, dated, and being deprecated (NIST retires 3DES in 2023-2024). Replace with AES-256-GCM.",
+      "latency_note": "3DES is significantly slower than AES-256, which is hardware-accelerated.",
+      "migration_note": "Replace 3DES with AES-256-GCM; plan retirement before NIST deprecation deadlines."
+    }
+  },
+  {
+    "name": "RC4",
+    "family": "symmetric-encryption",
+    "quantum_vulnerable": false,
+    "threat_horizon_years_default": 1,
+    "patterns": {
+      "python": [
+        "RC4\\.new\\s*\\(",
+        "from\\s+Crypto\\.Cipher\\s+import\\s+.*\\bARC4\\b",
+        "\\bARC4\\b",
+        "\\bRC4\\b"
+      ],
+      "javascript": [
+        "rc4\\b",
+        "crypto\\.createCipheriv\\s*\\(\\s*['\"]rc4"
+      ],
+      "java": [
+        "Cipher\\.getInstance\\s*\\(\\s*[\"']RC4[\"']\\s*\\)",
+        "Cipher\\.getInstance\\s*\\(\\s*[\"']ARCFOUR",
+        "\\bRC4\\b"
+      ],
+      "go": [
+        "rc4\\.NewCipher\\s*\\(",
+        "crypto/rc4\""
+      ],
+      "c_cpp": [
+        "RC4\\s*\\(",
+        "EVP_rc4\\s*\\("
+      ]
+    },
+    "key_size_pattern": null,
+    "pqc_recommendation": {
+      "algorithm": "AES-256-GCM",
+      "fips_reference": "N/A",
+      "rationale": "RC4 is cryptographically broken with well-known statistical biases and is banned in TLS. Replace with AES-256-GCM.",
+      "latency_note": "AES-256-GCM is faster and hardware-accelerated; RC4 offers no performance justification today.",
+      "migration_note": "Remove RC4 entirely; it is prohibited in modern protocols."
+    }
+  },
+  {
+    "name": "AES-128",
+    "family": "symmetric-encryption",
+    "quantum_vulnerable": true,
+    "threat_horizon_years_default": 20,
+    "patterns": {
+      "python": [
+        "AES\\.new\\s*\\([^,]+,\\s*AES\\.MODE_[A-Z_]+,\\s*[^,]*,\\s*(?:key|KEY)\\s*=\\s*[^,]*[^0-9](1[0-9]{2})[^0-9]?",
+        "AES\\.new\\s*\\(\\s*[^,]{0,80}(?:128)\\b",
+        "aes_128_\\w+\\b"
+      ],
+      "javascript": [
+        "aes-128-(?:cbc|ctr|gcm|ecb|cfb|ofb)\\b",
+        "AES\\.encrypt\\s*\\([^)]*\\{.*[^0-9]128[^0-9]",
+        "aes_128_\\w+\\b"
+      ],
+      "java": [
+        "Cipher\\.getInstance\\s*\\(\\s*[\"']AES/.*/.*[\"']\\s*\\)\\s*;\\s*//[^\\n]*(?:128|128-bit)",
+        "[\"']AES/\\w+/\\w+[\"'][^\\n]*(?:128)\\b"
+      ],
+      "go": [
+        "aes\\.NewCipher\\s*\\(\\s*(?:\\[)?(?:1[0-9])(?:\\])?\\s*\\]?byte",
+        "\\[16\\]byte",
+        "aes_128_\\w+\\b"
+      ],
+      "c_cpp": [
+        "AES_set_encrypt_key\\s*\\([^,]+,\\s*128\\s*,",
+        "\\bAES_128\\b",
+        "aes_128_\\w+\\b"
+      ]
+    },
+    "key_size_pattern": "(?:AES_set_encrypt_key\\s*\\([^,]+,\\s*(\\d{3})\\s*,|\\[(\\d{2})\\]byte|[-](\\d{3})[_-](?:cbc|ctr|gcm|ecb|cfb|ofb))",
+    "pqc_recommendation": {
+      "algorithm": "AES-256.",
+      "fips_reference": "N/A",
+      "rationale": "Grover's algorithm halves the effective symmetric security margin: AES-128 (~128-bit classical) offers only ~64-bit post-quantum security, below the 128-bit requirement. Upgrade to AES-256 which retains ~128-bit security under Grover.",
+      "latency_note": "AES-256 is only ~40% slower than AES-128 and is hardware-accelerated on modern CPUs.",
+      "migration_note": "Upgrade AES-128 to AES-256 across encryption, key wrapping, and authenticated encryption. Note: AES-192 provides ~96-bit post-quantum security and is also below 128-bit; AES-256 is recommended."
+    }
+  },
+  {
+    "name": "ML-KEM",
+    "family": "pqc-kem",
+    "quantum_vulnerable": false,
+    "threat_horizon_years_default": 0,
+    "patterns": {
+      "python": [
+        "ML-KEM\\b",
+        "Kyber\\b",
+        "ml_kem\\b",
+        "MLKEM768\\b",
+        "MLKEM1024\\b"
+      ],
+      "javascript": [
+        "ML-KEM\\b",
+        "Kyber\\b",
+        "MLKEM768\\b",
+        "mlkem\\b"
+      ],
+      "java": [
+        "ML-KEM\\b",
+        "Kyber\\b",
+        "MLKEM768\\b",
+        "ML\\-KEM\\b",
+        "\\bKyberKeyPairGenerator\\b"
+      ],
+      "go": [
+        "ML-KEM\\b",
+        "mlkem\\b",
+        "MLKEM768\\b",
+        "Kyber\\b"
+      ],
+      "c_cpp": [
+        "ML-KEM\\b",
+        "MLKEM768\\b",
+        "kyber\\b",
+        "Kyber\\b",
+        "crypto_kem\\b"
+      ]
+    },
+    "key_size_pattern": null,
+    "pqc_recommendation": {
+      "algorithm": "ML-KEM (FIPS 203)",
+      "fips_reference": "FIPS 203",
+      "rationale": "Already a NIST-standardized post-quantum KEM. Keep using ML-KEM (preferred parameter set ML-KEM-768 for 'future' security).",
+      "latency_note": "ML-KEM is efficient; no latency concern.",
+      "migration_note": "No migration required. Standardize on ML-KEM-768 or ML-KEM-1024 parameter sets."
+    }
+  },
+  {
+    "name": "ML-DSA",
+    "family": "pqc-signature",
+    "quantum_vulnerable": false,
+    "threat_horizon_years_default": 0,
+    "patterns": {
+      "python": [
+        "ML-DSA\\b",
+        "Dilithium\\b",
+        "ml_dsa\\b",
+        "MLDSA44\\b",
+        "MLDSA65\\b",
+        "MLDSA87\\b"
+      ],
+      "javascript": [
+        "ML-DSA\\b",
+        "Dilithium\\b",
+        "MLDSA44\\b",
+        "mldsa\\b"
+      ],
+      "java": [
+        "ML-DSA\\b",
+        "Dilithium\\b",
+        "MLDSA44\\b",
+        "\\bDilithiumSignature\\b"
+      ],
+      "go": [
+        "ML-DSA\\b",
+        "mldsa\\b",
+        "MLDSA44\\b",
+        "Dilithium\\b"
+      ],
+      "c_cpp": [
+        "ML-DSA\\b",
+        "MLDSA44\\b",
+        "dilithium\\b",
+        "Dilithium\\b"
+      ]
+    },
+    "key_size_pattern": null,
+    "pqc_recommendation": {
+      "algorithm": "ML-DSA (FIPS 204)",
+      "fips_reference": "FIPS 204",
+      "rationale": "Already a NIST-standardized post-quantum signature scheme. Keep using ML-DSA; SLH-DSA (FIPS 205) is available as a conservative hash-based alternative if desired.",
+      "latency_note": "ML-DSA signing is fast; verification is slower and signatures are large (~2.4-4.6 KB).",
+      "migration_note": "No migration required. Standardize on ML-DSA-44/65/87 depending on security level."
+    }
+  },
+  {
+    "name": "SLH-DSA",
+    "family": "pqc-signature",
+    "quantum_vulnerable": false,
+    "threat_horizon_years_default": 0,
+    "patterns": {
+      "python": [
+        "SLH-DSA\\b",
+        "SPHINCS\\+\\b",
+        "sphincs\\b",
+        "SLHDSA\\b"
+      ],
+      "javascript": [
+        "SLH-DSA\\b",
+        "SPHINCS\\+\\b",
+        "sphincs\\b",
+        "SLHDSA\\b"
+      ],
+      "java": [
+        "SLH-DSA\\b",
+        "SPHINCS\\+\\b",
+        "sphincs\\b"
+      ],
+      "go": [
+        "SLH-DSA\\b",
+        "sphincs\\b",
+        "SLHDSA\\b"
+      ],
+      "c_cpp": [
+        "SLH-DSA\\b",
+        "SPHINCS\\+\\b",
+        "sphincs\\b",
+        "crypto_sign\\b"
+      ]
+    },
+    "key_size_pattern": null,
+    "pqc_recommendation": {
+      "algorithm": "SLH-DSA (FIPS 205)",
+      "fips_reference": "FIPS 205",
+      "rationale": "Already a NIST-standardized stateless hash-based post-quantum signature scheme. Keep using SLH-DSA where conservative hash-based assurance is preferred.",
+      "latency_note": "SLH-DSA has larger signatures and slower signing than ML-DSA; acceptable where long-term conservative security is required.",
+      "migration_note": "No migration required. Use SLH-DSA where hash-based cryptographic assurance is a design requirement."
+    }
+  }
+]

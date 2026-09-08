@@ -17,5 +17,8 @@ dev = [
     "pytest-cov",
 ]
 
+[tool.setuptools.package-data]
+ecdat_core = ["signatures.json"]
+
 [tool.pytest.ini_options]
 addopts = "-v"
