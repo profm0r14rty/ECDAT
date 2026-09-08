@@ -21,4 +21,7 @@ dev = [
 ecdat_core = ["signatures.json"]
 
 [tool.pytest.ini_options]
-addopts = "-v"
+addopts = "-v -m 'not network'"
+markers = [
+    "network: tests that require network access (explicitly opt-in)",
+]
