@@ -81,19 +81,34 @@ class TestPythonRSA:
         call = next(d for d in detections if d.line_number == 2)
         assert call.algorithm_family == "RSA"
         assert call.quantum_vulnerable is True
+        assert call.classically_broken is False
         assert call.line_number == 2
         assert call.key_size_bits == 2048
         assert call.confidence == 1.0
 
     def test_import_detection_lower_confidence(self):
-        # The KB's Python import pattern matches the cryptography-style import
-        # (`from cryptography.hazmat... import ...RSA`), not the Crypto-style
-        # import, so use IMPORT_SNIPPET to exercise the 0.6 confidence path.
+        # Both import styles match now (Fix Phase 1 added the PyCryptodome
+        # `from Crypto.PublicKey import RSA` pattern); the cryptography-style
+        # import is exercised here for the 0.6 confidence path.
         detections = scan_file_content("sample.py", self.IMPORT_SNIPPET, "python")
         import_match = next(d for d in detections if d.line_number == 1)
         assert import_match.algorithm_family == "RSA"
         assert import_match.quantum_vulnerable is True
+        assert import_match.classically_broken is False
         assert import_match.line_number == 1
+        assert import_match.confidence == 0.6
+
+    def test_pycryptodome_rsa_import_detection(self):
+        # Phase 3 noted `from Crypto.PublicKey import RSA` previously did NOT
+        # match. The PyCryptodome-style import must now produce a detection.
+        snippet = "from Crypto.PublicKey import RSA\n"
+        detections = scan_file_content("sample.py", snippet, "python")
+        assert detections
+        import_match = next(d for d in detections if d.line_number == 1)
+        assert import_match.algorithm_family == "RSA"
+        assert import_match.quantum_vulnerable is True
+        assert import_match.classically_broken is False
+        assert import_match.key_size_bits is None
         assert import_match.confidence == 0.6
 
 
@@ -131,14 +146,16 @@ class TestPythonMd5:
         "digest = hashlib.md5(data).hexdigest()\n"
     )
 
-    def test_md5_detection_not_quantum_vulnerable(self):
+    def test_md5_detection_classically_broken_not_quantum_vulnerable(self):
         detections = scan_file_content("sample.py", self.SNIPPET, "python")
         line_two = [d for d in detections if d.line_number == 2]
         # Both the hashlib.md5( call and the generic md5( pattern match.
         assert line_two
         for detection in line_two:
             assert detection.algorithm_family == "MD5"
-            # MD5 is classically weak, but NOT quantum-vulnerable.
+            # MD5 is classically broken today (collision weakness), but NOT
+            # quantum-vulnerable — the two flags must not be conflated.
+            assert detection.classically_broken is True
             assert detection.quantum_vulnerable is False
             assert detection.line_number == 2
             assert detection.confidence == 1.0
@@ -165,18 +182,37 @@ class TestPythonAes:
         call = next(d for d in detections if d.line_number == 2)
         assert call.algorithm_family == "AES"
         assert call.quantum_vulnerable is True
+        assert call.classically_broken is False
         assert call.key_size_bits is None
         assert call.confidence == 1.0
 
-    def test_labeled_aes256_resolves_quantum_safe(self):
+    def test_aes128_explicit_key_size_is_quantum_vulnerable(self):
+        # An extractable AES-128 key size is below the 192-bit
+        # min_quantum_safe_key_bits threshold: Grover's halves its margin, so
+        # the per-detection quantum_vulnerable computation must flag it.
+        snippet = (
+            "from Crypto.Cipher import AES\n"
+            "cipher = AES.new(key, AES.MODE_GCM)  # AES-128\n"
+        )
+        detections = scan_file_content("sample.py", snippet, "python")
+        call = next(d for d in detections if d.line_number == 2)
+        assert call.key_size_bits == 128
+        assert call.quantum_vulnerable is True
+        assert call.classically_broken is False
+
+    def test_labeled_aes256_produces_detection_and_resolves_quantum_safe(self):
         # When the matched line carries an extractable key size, the
         # min_quantum_safe_key_bits threshold (192) applies dynamically:
         # AES-256 is above it and must NOT be flagged quantum-vulnerable.
+        # Fix Phase 1: the old AES-128-only entry produced ZERO detections
+        # for a labeled AES-256 line — a detection must be produced here.
         snippet = (
             "from Crypto.Cipher import AES\n"
             "cipher = AES.new(key, AES.MODE_GCM)  # AES-256\n"
         )
         detections = scan_file_content("sample.py", snippet, "python")
+        assert detections
         call = next(d for d in detections if d.line_number == 2)
         assert call.key_size_bits == 256
         assert call.quantum_vulnerable is False
+        assert call.classically_broken is False

@@ -24,6 +24,9 @@ class Detection(BaseModel):
         algorithm_family: Broad algorithm family (e.g. RSA, AES, SHA).
         key_size_bits: Key size in bits, if determinable.
         quantum_vulnerable: Whether the artefact is vulnerable to quantum attacks.
+        classically_broken: Whether the artefact is already broken or deprecated
+            today, independent of quantum computing entirely (e.g. MD5, SHA-1,
+            DES, 3DES, RC4).
         confidence: Detection confidence score in [0.0, 1.0].
         language: Programming language of the source file.
         detection_method: How the artefact was detected.
@@ -37,6 +40,7 @@ class Detection(BaseModel):
     algorithm_family: str
     key_size_bits: int | None = None
     quantum_vulnerable: bool
+    classically_broken: bool = False
     confidence: float
     language: str
     detection_method: Literal["regex", "manifest", "certificate-parse"]

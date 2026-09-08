@@ -122,6 +122,7 @@ def scan_file_content(
                             quantum_vulnerable=_resolve_quantum_vulnerable(
                                 signature, key_size_bits
                             ),
+                            classically_broken=signature.classically_broken,
                             confidence=_compute_confidence(match.group(0)),
                             language=language,
                             detection_method="regex",
