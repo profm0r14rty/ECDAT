@@ -25,6 +25,7 @@ deselected by default).
 | 6: PQC recommendation engine | recommender.py (recommend pass-through of pqc_recommendation + "no migration needed" for existing PQC) + 3 recommender tests (70 passing) | Done | 03204b4 | 2026-09-08 |
 | 7: CycloneDX 1.6 CBOM export | cbom_export.py (export_cbom + export_summary) + 18 cbom-export tests (88 passing) | Done | 6871169 | 2026-09-08 |
 | 8: CLI entrypoint and end-to-end fixture test | cli.py (run_scan orchestrator + `python -m ecdat_core.cli scan`), demo_repo fixture, test_end_to_end.py (4 e2e tests, 92 total passing), files_scanned field on ScanResult | Done | 0159c82 | 2026-09-08 |
+| Fix Phase 1 | Split `classically_broken` from `quantum_vulnerable` (required field on every signature entry), replace AES-128 entry with generic AES entry (`min_quantum_safe_key_bits=192`, dynamic per-detection quantum_vulnerable in detector.py), add verified PyCryptodome coverage (RSA/DSA/ECC/AES/DES/3DES/ARC4/MD5/SHA-1/DSS), hashlib.sha1 verified present; 97 tests passing | Done | 3a295c7 | 2026-09-09 |
 
 ### Phase 8 — CLI run against `fixtures/demo_repo`
 
