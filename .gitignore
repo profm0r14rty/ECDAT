@@ -1,31 +1,138 @@
-# Python
+# =============================================================
+# ECDAT — Enterprise Cryptographic Discovery & Analysis Tool
+# Comprehensive .gitignore for: Python 3.12, FastAPI,
+# React+Vite+TS+Tailwind, Postgres, Redis, Docker, IDE
+# =============================================================
+
+# ---------------- Python ----------------
 __pycache__/
-*.pyc
-*.pyo
-*.pyd
+*.py[cod]
+*$py.class
+*.so
+*.egg
 *.egg-info/
-.dist/
-venv/
-.env/
+*.dist-info/
+.eggs/
+build/
+dist/
+htmlcov/
+.installed.cfg
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 .coverage
+.coverage.*
+coverage.xml
+.tox/
+.nox/
+.cache/
+.hypothesis/
+*.h5
 
-# Node
+# --- Virtual environments (common names) ---
+.venv/
+venv/
+env/
+ENV/
+virtualenv/
+
+# ---------------- Node / Frontend (React + Vite + TS) ----------------
 node_modules/
-package-lock.json
-yarn.lock
-p-lock.yaml
+dist/
+dist-ssr/
+*.local
+# Vite
+.vite/
+# TypeScript build output (if emitted into project)
+tsconfig.tsbuildinfo
+*.tsbuildinfo
+# npm/yarn/pnpm logs and debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
 
-# Docker
-.dockerinit
+# NOTE: lockfiles should be committed for reproducible builds.
+# Only uncomment below if you deliberately want to ignore them.
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
 
-# IDE
+# ---------------- Backend (FastAPI) ----------------
+*.sqlite3
+*.db
+*.rdb
+celerybeat-schedule
+celerybeat.pid
+
+# ---------------- Postgres ----------------
+*.pgpass
+*.pg_restore
+
+# ---------------- Redis ----------------
+dump.rdb
+appendonly.aof
+
+# ---------------- Docker ----------------
+docker-compose.override.yml
+.docker/
+Dockerfile.*~
+.env.docker
+
+# ---------------- Environment / Secrets ----------------
+# Never commit secrets. Keep tracked .env.example only.
+.env
+.env.*
+!.env.example
+!.env.sample
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials.json
+
+# ---------------- IDE / Editors ----------------
 .vscode/
 .idea/
 *.swp
-*.s3
+*.swo
+*~
+*.sublime-project
+*.sublime-workspace
+*.classpath
+*.project
+.settings/
+.projectile
+.eclim
+*.code-workspace
 
-# Environment
-.env*
+# ---------------- OS ----------------
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.dmg
+*.app
+*.exe
+*.msi
 
-# OpenCode
+# ---------------- Logs ----------------
+logs/
+*.log
+
+# ---------------- Testing / Coverage ----------------
+coverage/
+.jacoco/
+pytest_cache/
+
+# ---------------- Misc ----------------
+*.pyc-e
+*.orig
+*.rej
+*.bak
+*.tmp
+
+# ---------------- OpenCode (agent state) ----------------
 .omo/
