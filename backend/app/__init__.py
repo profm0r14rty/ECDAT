@@ -1,0 +1,1 @@
+"""FastAPI application for ECDAT CBOM scanner backend."""

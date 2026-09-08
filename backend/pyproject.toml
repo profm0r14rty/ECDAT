@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ecdat-backend"
+version = "0.1.0"
+description = "FastAPI backend for ECDAT CBOM scanner"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "sqlalchemy>=2",
+    "alembic",
+    "psycopg[binary]",
+    "redis",
+    "python-multipart",
+    "pytest",
+    "httpx",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov",
+]
+
+[tool.setuptools.packages.find]
+include = ["backend*"]
+
+[tool.setuptools.package-data]
+ecdat_backend = []
+
+[tool.pytest.ini_options]
+addopts = "-v -m 'not network'"
+markers = [
+    "network: tests that require network access (explicitly opt-in)",
+]
