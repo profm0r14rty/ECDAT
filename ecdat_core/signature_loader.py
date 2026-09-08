@@ -60,7 +60,20 @@ class SignatureEntry(BaseModel):
     Attributes:
         name: Human-readable algorithm name (e.g. "RSA").
         family: Broad algorithm family classification.
-        quantum_vulnerable: Whether the algorithm is vulnerable to quantum attacks.
+        quantum_vulnerable: Whether the algorithm is vulnerable to quantum
+            attacks. For symmetric ciphers with a
+            ``min_quantum_safe_key_bits`` threshold this is the conservative
+            static default used when the extracted key size is unavailable;
+            per-detection it should be recomputed from the extracted key size
+            (see :data:`min_quantum_safe_key_bits`).
+        classically_broken: Whether the algorithm is already broken/deprecated
+            today, independent of quantum computing entirely (e.g. MD5, SHA-1,
+            DES, 3DES, RC4). Must be set explicitly on every entry — there is
+            no default.
+        min_quantum_safe_key_bits: Minimum key size (in bits) at which the
+            algorithm's post-quantum security is acceptable; only meaningful
+            for symmetric ciphers whose ``quantum_vulnerable`` should depend on
+            the extracted key size rather than being static. ``None`` elsewhere.
         threat_horizon_years_default: Default Mosca threat horizon (Z) in years.
         patterns: Map of language -> list of regex patterns used to detect this
             algorithm in source code of that language.
@@ -79,6 +92,8 @@ class SignatureEntry(BaseModel):
         "pqc-signature",
     ]
     quantum_vulnerable: bool
+    classically_broken: bool
+    min_quantum_safe_key_bits: int | None = None
     threat_horizon_years_default: float = Field(ge=0)
     patterns: dict[str, list[str]]
     key_size_pattern: str | None = None

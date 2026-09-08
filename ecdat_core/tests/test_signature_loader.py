@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -99,6 +100,54 @@ class TestFipsReference:
 
 
 # ---------------------------------------------------------------------------
+# Fix Phase 1: classically_broken / min_quantum_safe_key_bits split
+# ---------------------------------------------------------------------------
+
+
+class TestClassicalVsQuantumSplit:
+    def test_every_entry_sets_classically_broken_explicitly(self, raw_signatures):
+        # No entry may rely on a model default: the JSON payload must carry the
+        # flag explicitly so the split is auditable in the knowledge base.
+        for item in raw_signatures:
+            assert "classically_broken" in item, (
+                f"{item['name']} must set classically_broken explicitly"
+            )
+            assert isinstance(item["classically_broken"], bool)
+
+    def test_classically_broken_flags_correct(self, entries):
+        flags = {e.name: e.classically_broken for e in entries}
+        # Broken today, independent of quantum computers.
+        assert flags["MD5"] is True
+        assert flags["SHA-1"] is True
+        assert flags["DES"] is True
+        assert flags["3DES"] is True
+        assert flags["RC4"] is True
+        # Everything else is not classically broken (including AES and PQC).
+        assert flags["AES"] is False
+        assert flags["RSA"] is False
+        assert flags["ML-KEM"] is False
+        assert flags["ML-DSA"] is False
+        assert flags["SLH-DSA"] is False
+
+    def test_aes_has_min_quantum_safe_key_bits_of_192(self, entries):
+        aes = next(e for e in entries if e.name == "AES")
+        assert aes.min_quantum_safe_key_bits == 192
+        # Always classically sound; only quantum (Grover) considerations apply.
+        assert aes.classically_broken is False
+
+    def test_aes_python_patterns_match_bare_new_call(self, entries):
+        # The AES-128-only entry required a literal "128" in the matched line,
+        # so `AES.new(key, AES.MODE_GCM)` with no key size was invisible. The
+        # generic AES entry must match a bare, unspecified-key-size usage.
+        aes = next(e for e in entries if e.name == "AES")
+        line = "cipher = AES.new(key, AES.MODE_GCM)"
+        assert any(re.search(pattern, line) for pattern in aes.patterns["python"])
+        assert all(
+            "128" not in pattern for pattern in aes.patterns["python"]
+        )
+
+
+# ---------------------------------------------------------------------------
 # Loader function behaviour
 # ---------------------------------------------------------------------------
 
@@ -117,11 +166,11 @@ class TestLoaderFunctions:
 
     def test_quantum_vulnerable_flags_present(self, entries):
         flags = {e.name: e.quantum_vulnerable for e in entries}
-        # Quantum-vulnerable asymmetric + AES-128 should be flagged.
+        # Quantum-vulnerable asymmetric + AES should be flagged.
         assert flags["RSA"] is True
         assert flags["ECDH"] is True
         assert flags["ECDSA"] is True
-        assert flags["AES-128"] is True
+        assert flags["AES"] is True
         # PQC families should NOT be flagged.
         assert flags["ML-KEM"] is False
         assert flags["ML-DSA"] is False
@@ -146,6 +195,7 @@ class TestLoaderFunctions:
                     "name": "bogus",
                     "family": "signature",
                     "quantum_vulnerable": True,
+                    "classically_broken": False,
                     "threat_horizon_years_default": 10,
                     "patterns": {"rust": ["foo"]},
                     "key_size_pattern": None,

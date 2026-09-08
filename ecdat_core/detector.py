@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 
 from ecdat_core.models import Detection
-from ecdat_core.signature_loader import get_signatures_for_language
+from ecdat_core.signature_loader import SignatureEntry, get_signatures_for_language
 
 # Extensions -> ECDAT language key. Case is normalised before lookup.
 _EXTENSION_TO_LANGUAGE: dict[str, str] = {
@@ -107,6 +107,9 @@ def scan_file_content(
             compiled = re.compile(pattern)
             for line_index, line in enumerate(lines):
                 line_number = line_index + 1
+                key_size_bits = _extract_key_size(
+                    signature.key_size_pattern, line
+                )
                 for match in compiled.finditer(line):
                     detections.append(
                         Detection(
@@ -115,10 +118,10 @@ def scan_file_content(
                             matched_text=_trim_match(match.group(0)),
                             asset_type=asset_type,
                             algorithm_family=signature.name,
-                            key_size_bits=_extract_key_size(
-                                signature.key_size_pattern, line
+                            key_size_bits=key_size_bits,
+                            quantum_vulnerable=_resolve_quantum_vulnerable(
+                                signature, key_size_bits
                             ),
-                            quantum_vulnerable=signature.quantum_vulnerable,
                             confidence=_compute_confidence(match.group(0)),
                             language=language,
                             detection_method="regex",
@@ -182,3 +185,21 @@ def _compute_confidence(matched_text: str) -> float:
     if _API_CALL_RE.search(matched_text):
         return CONFIDENCE_API_CALL
     return CONFIDENCE_IMPORT_KEYWORD
+
+
+def _resolve_quantum_vulnerable(
+    signature: SignatureEntry, key_size_bits: int | None
+) -> bool:
+    """Resolve quantum-vulnerability for a single detection.
+
+    Symmetric ciphers with a ``min_quantum_safe_key_bits`` threshold are
+    evaluated dynamically per-detection: a key size at or above the threshold
+    (e.g. AES-192/256) is quantum-safe, while a smaller extracted size is
+    flagged. When no key size could be extracted the signature's static
+    ``quantum_vulnerable`` applies unchanged — for AES that is the conservative
+    ``True`` default.
+    """
+    threshold = signature.min_quantum_safe_key_bits
+    if threshold is not None and key_size_bits is not None:
+        return key_size_bits < threshold
+    return signature.quantum_vulnerable

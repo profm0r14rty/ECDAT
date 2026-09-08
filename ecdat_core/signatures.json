@@ -3,11 +3,15 @@
     "name": "RSA",
     "family": "asymmetric-encryption",
     "quantum_vulnerable": true,
+    "classically_broken": false,
     "threat_horizon_years_default": 15,
     "patterns": {
       "python": [
         "RSA\\.generate\\s*\\(",
+        "RSA\\.import_key\\s*\\(",
+        "RSA\\.construct\\s*\\(",
         "from\\s+cryptography\\.hazmat\\.primitives\\.asymmetric\\s+import\\s+.*\\bRSA\\b",
+        "from\\s+Crypto\\.PublicKey\\s+import\\s+.*\\bRSA\\b",
         "rsa\\.newkeys\\s*\\("
       ],
       "javascript": [
@@ -46,6 +50,7 @@
     "name": "DH",
     "family": "asymmetric-encryption",
     "quantum_vulnerable": true,
+    "classically_broken": false,
     "threat_horizon_years_default": 15,
     "patterns": {
       "python": [
@@ -84,6 +89,7 @@
     "name": "ECDH",
     "family": "asymmetric-encryption",
     "quantum_vulnerable": true,
+    "classically_broken": false,
     "threat_horizon_years_default": 15,
     "patterns": {
       "python": [
@@ -126,12 +132,16 @@
     "name": "ECDSA",
     "family": "signature",
     "quantum_vulnerable": true,
+    "classically_broken": false,
     "threat_horizon_years_default": 15,
     "patterns": {
       "python": [
         "ECDSA\\.generate\\s*\\(",
         "from\\s+cryptography\\.hazmat\\.primitives\\.asymmetric\\.ec\\s+import\\s+.*\\bECDSA\\b",
         "ec\\.generate_private_key\\s*\\(",
+        "from\\s+Crypto\\.PublicKey\\s+import\\s+.*\\bECC\\b",
+        "from\\s+Crypto\\.Signature\\s+import\\s+.*\\bDSS\\b",
+        "DSS\\.new\\s*\\(",
         "\\becdsa\\b"
       ],
       "javascript": [
@@ -170,11 +180,16 @@
     "name": "DSA",
     "family": "signature",
     "quantum_vulnerable": true,
+    "classically_broken": false,
     "threat_horizon_years_default": 15,
     "patterns": {
       "python": [
         "DSA\\.generate\\s*\\(",
+        "DSA\\.import_key\\s*\\(",
         "from\\s+cryptography\\.hazmat\\.primitives\\.asymmetric\\s+import\\s+.*\\bDSA\\b",
+        "from\\s+Crypto\\.PublicKey\\s+import\\s+.*\\bDSA\\b",
+        "from\\s+Crypto\\.Signature\\s+import\\s+.*\\bDSS\\b",
+        "DSS\\.new\\s*\\(",
         "dsa\\.generate_private_key\\s*\\("
       ],
       "javascript": [
@@ -210,11 +225,15 @@
     "name": "ECC generic key generation",
     "family": "asymmetric-encryption",
     "quantum_vulnerable": true,
+    "classically_broken": false,
     "threat_horizon_years_default": 15,
     "patterns": {
       "python": [
         "ec\\.generate_private_key\\s*\\(",
         "from\\s+cryptography\\.hazmat\\.primitives\\.asymmetric\\s+import\\s+.*\\bEC\\b",
+        "ECC\\.generate\\s*\\(",
+        "ECC\\.import_key\\s*\\(",
+        "from\\s+Crypto\\.PublicKey\\s+import\\s+.*\\bECC\\b",
         "SECP256R1\\b",
         "SECP384R1\\b",
         "SECP521R1\\b"
@@ -255,10 +274,13 @@
     "name": "MD5",
     "family": "hash",
     "quantum_vulnerable": false,
+    "classically_broken": true,
     "threat_horizon_years_default": 1,
     "patterns": {
       "python": [
         "hashlib\\.md5\\s*\\(",
+        "from\\s+Crypto\\.Hash\\s+import\\s+.*\\bMD5\\b",
+        "MD5\\.new\\s*\\(",
         "md5\\s*\\(",
         "\\bMD5\\b"
       ],
@@ -297,10 +319,13 @@
     "name": "SHA-1",
     "family": "hash",
     "quantum_vulnerable": false,
+    "classically_broken": true,
     "threat_horizon_years_default": 1,
     "patterns": {
       "python": [
         "hashlib\\.sha1\\s*\\(",
+        "from\\s+Crypto\\.Hash\\s+import\\s+.*\\bSHA1\\b",
+        "SHA1\\.new\\s*\\(",
         "sha1\\s*\\(",
         "\\bSHA1\\b",
         "\\bSHA-1\\b"
@@ -342,6 +367,7 @@
     "name": "DES",
     "family": "symmetric-encryption",
     "quantum_vulnerable": false,
+    "classically_broken": true,
     "threat_horizon_years_default": 1,
     "patterns": {
       "python": [
@@ -383,6 +409,7 @@
     "name": "3DES",
     "family": "symmetric-encryption",
     "quantum_vulnerable": false,
+    "classically_broken": true,
     "threat_horizon_years_default": 1,
     "patterns": {
       "python": [
@@ -424,9 +451,11 @@
     "name": "RC4",
     "family": "symmetric-encryption",
     "quantum_vulnerable": false,
+    "classically_broken": true,
     "threat_horizon_years_default": 1,
     "patterns": {
       "python": [
+        "ARC4\\.new\\s*\\(",
         "RC4\\.new\\s*\\(",
         "from\\s+Crypto\\.Cipher\\s+import\\s+.*\\bARC4\\b",
         "\\bARC4\\b",
@@ -460,41 +489,58 @@
     }
   },
   {
-    "name": "AES-128",
+    "name": "AES",
     "family": "symmetric-encryption",
     "quantum_vulnerable": true,
+    "classically_broken": false,
+    "min_quantum_safe_key_bits": 192,
     "threat_horizon_years_default": 20,
     "patterns": {
       "python": [
-        "AES\\.new\\s*\\([^,]+,\\s*AES\\.MODE_[A-Z_]+,\\s*[^,]*,\\s*(?:key|KEY)\\s*=\\s*[^,]*[^0-9](1[0-9]{2})[^0-9]?",
-        "AES\\.new\\s*\\(\\s*[^,]{0,80}(?:128)\\b",
-        "aes_128_\\w+\\b"
+        "AES\\.new\\s*\\(",
+        "algorithms\\.AES\\s*\\(",
+        "from\\s+Crypto\\.Cipher\\s+import\\s+.*\\bAES\\b",
+        "from\\s+cryptography\\.hazmat\\.primitives\\.ciphers\\s+import\\s+.*\\bAES\\b",
+        "\\bAES-\\d+\\b",
+        "\\bAES\\b"
       ],
       "javascript": [
-        "aes-128-(?:cbc|ctr|gcm|ecb|cfb|ofb)\\b",
-        "AES\\.encrypt\\s*\\([^)]*\\{.*[^0-9]128[^0-9]",
-        "aes_128_\\w+\\b"
+        "crypto\\.createCipheriv?\\s*\\(\\s*['\"]aes-",
+        "['\"]aes-(?:128|192|256)-(?:cbc|ctr|gcm|ecb|cfb|ofb|ccm)['\"]",
+        "\\baes_(?:128|192|256)_\\w+\\b",
+        "(?:CryptoJS\\.)?AES\\.(?:encrypt|decrypt)\\s*\\(",
+        "\\bAES\\b"
       ],
       "java": [
-        "Cipher\\.getInstance\\s*\\(\\s*[\"']AES/.*/.*[\"']\\s*\\)\\s*;\\s*//[^\\n]*(?:128|128-bit)",
-        "[\"']AES/\\w+/\\w+[\"'][^\\n]*(?:128)\\b"
+        "Cipher\\.getInstance\\s*\\(\\s*[\"']AES",
+        "KeyGenerator\\.getInstance\\s*\\(\\s*[\"']AES",
+        "[\"']AES/\\w+/\\w+[\"']",
+        "SecretKeySpec\\s*\\([^)]*\\bAES\\b",
+        "\\bAES-\\d+\\b"
       ],
       "go": [
-        "aes\\.NewCipher\\s*\\(\\s*(?:\\[)?(?:1[0-9])(?:\\])?\\s*\\]?byte",
-        "\\[16\\]byte",
-        "aes_128_\\w+\\b"
+        "\"crypto/aes\"",
+        "aes\\.NewCipher\\s*\\(",
+        "aes\\.NewCTR\\s*\\(",
+        "aes\\.NewCBCEncrypter\\s*\\(",
+        "aes\\.NewCBCDecrypter\\s*\\(",
+        "\\baes_\\d+_\\w+\\b"
       ],
       "c_cpp": [
-        "AES_set_encrypt_key\\s*\\([^,]+,\\s*128\\s*,",
+        "AES_set_encrypt_key\\s*\\(",
+        "AES_set_decrypt_key\\s*\\(",
+        "EVP_aes_\\d+_(?:cbc|cfb|ofb|ctr|gcm|ecb|ccm)\\b",
         "\\bAES_128\\b",
-        "aes_128_\\w+\\b"
+        "\\bAES_192\\b",
+        "\\bAES_256\\b",
+        "\\baes_\\d+_\\w+\\b"
       ]
     },
-    "key_size_pattern": "(?:AES_set_encrypt_key\\s*\\([^,]+,\\s*(\\d{3})\\s*,|\\[(\\d{2})\\]byte|[-](\\d{3})[_-](?:cbc|ctr|gcm|ecb|cfb|ofb))",
+    "key_size_pattern": "(?:AES_set_(?:en|de)crypt_key\\s*\\([^,]+,\\s*(\\d{3})\\s*,|(?:aes|AES)[-_](\\d{3})(?:[-_][a-z0-9]+)?)",
     "pqc_recommendation": {
       "algorithm": "AES-256.",
       "fips_reference": "N/A",
-      "rationale": "Grover's algorithm halves the effective symmetric security margin: AES-128 (~128-bit classical) offers only ~64-bit post-quantum security, below the 128-bit requirement. Upgrade to AES-256 which retains ~128-bit security under Grover.",
+      "rationale": "Grover's algorithm halves the effective symmetric security margin: AES-128 (~128-bit classical) offers only ~64-bit post-quantum security, below the 192-bit min_quantum_safe_key_bits threshold and should be flagged. AES-192 retains ~96-bit and AES-256 retains ~128-bit post-quantum security — both above the threshold and acceptable.",
       "latency_note": "AES-256 is only ~40% slower than AES-128 and is hardware-accelerated on modern CPUs.",
       "migration_note": "Upgrade AES-128 to AES-256 across encryption, key wrapping, and authenticated encryption. Note: AES-192 provides ~96-bit post-quantum security and is also below 128-bit; AES-256 is recommended."
     }
@@ -503,6 +549,7 @@
     "name": "ML-KEM",
     "family": "pqc-kem",
     "quantum_vulnerable": false,
+    "classically_broken": false,
     "threat_horizon_years_default": 0,
     "patterns": {
       "python": [
@@ -552,6 +599,7 @@
     "name": "ML-DSA",
     "family": "pqc-signature",
     "quantum_vulnerable": false,
+    "classically_broken": false,
     "threat_horizon_years_default": 0,
     "patterns": {
       "python": [
@@ -600,6 +648,7 @@
     "name": "SLH-DSA",
     "family": "pqc-signature",
     "quantum_vulnerable": false,
+    "classically_broken": false,
     "threat_horizon_years_default": 0,
     "patterns": {
       "python": [

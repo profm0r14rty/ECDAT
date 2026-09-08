@@ -43,6 +43,7 @@ def make_signature_entry(**overrides) -> dict:
         "name": "RSA",
         "family": "asymmetric-encryption",
         "quantum_vulnerable": True,
+        "classically_broken": False,
         "threat_horizon_years_default": 15.0,
         "patterns": {"python": ["RSA\\.generate\\((?P<size>\\d+)\\)"]},
         "key_size_pattern": r"generate\((?P<size>\d+)\)",

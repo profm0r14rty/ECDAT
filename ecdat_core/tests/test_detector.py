@@ -145,21 +145,38 @@ class TestPythonMd5:
 
 
 # ---------------------------------------------------------------------------
-# Python AES-256 — NOT flagged quantum-vulnerable
+# Python AES — generic key size matching
 # ---------------------------------------------------------------------------
 
 
-class TestPythonAes256:
+class TestPythonAes:
     SNIPPET = (
         "from Crypto.Cipher import AES\n"
-        "cipher = AES.new(key, AES.MODE_GCM)  # AES-256\n"
+        "cipher = AES.new(key, AES.MODE_GCM)\n"
     )
 
-    def test_aes256_not_flagged_quantum_vulnerable(self):
-        # The current signature knowledge base only ships an AES-128 entry,
-        # whose Python patterns hard-require a literal "128" in the line.
-        # A generic AES-256 usage therefore yields no detection, so nothing is
-        # flagged quantum-vulnerable. Do NOT expand the KB here (Phase 2 scope).
+    def test_bare_aes_new_matches_conservative_default(self):
+        # Fix Phase 1: the generic AES entry matches AES.new() regardless of
+        # key size — the old AES-128-only entry required a literal "128" and
+        # missed this line entirely. With no key size present, the static
+        # conservative default (quantum_vulnerable=True) applies.
         detections = scan_file_content("sample.py", self.SNIPPET, "python")
-        assert detections == []
-        assert not any(d.quantum_vulnerable for d in detections)
+        assert detections
+        call = next(d for d in detections if d.line_number == 2)
+        assert call.algorithm_family == "AES"
+        assert call.quantum_vulnerable is True
+        assert call.key_size_bits is None
+        assert call.confidence == 1.0
+
+    def test_labeled_aes256_resolves_quantum_safe(self):
+        # When the matched line carries an extractable key size, the
+        # min_quantum_safe_key_bits threshold (192) applies dynamically:
+        # AES-256 is above it and must NOT be flagged quantum-vulnerable.
+        snippet = (
+            "from Crypto.Cipher import AES\n"
+            "cipher = AES.new(key, AES.MODE_GCM)  # AES-256\n"
+        )
+        detections = scan_file_content("sample.py", snippet, "python")
+        call = next(d for d in detections if d.line_number == 2)
+        assert call.key_size_bits == 256
+        assert call.quantum_vulnerable is False
