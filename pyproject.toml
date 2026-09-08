@@ -17,6 +17,9 @@ dev = [
     "pytest-cov",
 ]
 
+[tool.setuptools.packages.find]
+include = ["ecdat_core*"]
+
 [tool.setuptools.package-data]
 ecdat_core = ["signatures.json"]
 
