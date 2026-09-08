@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+.dist/
+venv/
+.env/
+.coverage
+
+# Node
+node_modules/
+package-lock.json
+yarn.lock
+p-lock.yaml
+
+# Docker
+.dockerinit
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.s3
+
+# Environment
+.env*
+
+# OpenCode
+.omo/
