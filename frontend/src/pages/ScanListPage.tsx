@@ -58,7 +58,7 @@ function NewScanForm() {
     setError(null)
     try {
       const created = await api.createScan(form)
-      navigate(`/scans/${created.id}`)
+      navigate(`/app/scans/${created.id}/overview`)
     } catch (err) {
       setError(apiErrorMessage(err))
       setCreating(false)
@@ -177,7 +177,7 @@ function ScanList() {
                   <TableRow
                     key={scan.id}
                     className="cursor-pointer"
-                    onClick={() => navigate(`/scans/${scan.id}`)}
+                    onClick={() => navigate(`/app/scans/${scan.id}`)}
                   >
                     <TableCell>
                       <Badge variant={STATUS_VARIANT[scan.status]}>

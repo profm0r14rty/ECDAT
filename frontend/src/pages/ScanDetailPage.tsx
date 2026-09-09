@@ -106,7 +106,7 @@ export default function ScanDetailPage() {
           <AlertDescription>{error}</AlertDescription>
         </Alert>
         <Button asChild variant="outline" className="w-fit">
-          <Link to="/">Back to scans</Link>
+          <Link to="/app">Back to scans</Link>
         </Button>
       </main>
     )
@@ -131,9 +131,9 @@ export default function ScanDetailPage() {
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
-      <Button asChild variant="outline" className="w-fit">
-        <Link to="/">Back to scans</Link>
-      </Button>
+        <Button asChild variant="outline" className="w-fit">
+          <Link to="/app">Back to scans</Link>
+        </Button>
 
       <header className="flex items-start justify-between gap-4">
         <div>
