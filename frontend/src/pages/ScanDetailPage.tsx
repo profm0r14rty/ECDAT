@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/tabs'
 import { formatDateTime } from '@/lib/format'
 import { RISK_COLORS, RISK_LABELS } from '@/lib/colors'
+import ArtefactsTab from '@/pages/ArtefactsTab'
 
 /** Poll interval while a scan is queued or running (milliseconds). */
 const POLL_INTERVAL_MS = 1500
@@ -247,6 +248,12 @@ function DoneState({
         }))
     : []
 
+  // Algorithm families are data-driven from this scan's own results so the
+  // Artefacts tab's filter options always match what is actually present.
+  const artefactFamilies = summary !== null
+    ? Object.keys(summary.algorithm_family_counts)
+    : []
+
   return (
     <>
       <Card>
@@ -394,7 +401,7 @@ function DoneState({
         </TabsContent>
 
         <TabsContent value="artefacts" className="pt-4">
-          <InertTabPlaceholder text="The paginated, filterable artefact listing arrives in a later phase." />
+          <ArtefactsTab scanId={scan.id} families={artefactFamilies} />
         </TabsContent>
 
         <TabsContent value="recommendations" className="pt-4">
