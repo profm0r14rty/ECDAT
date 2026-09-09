@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
+import { Download, Loader2 } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts'
 
 import {
@@ -405,11 +405,11 @@ function DoneState({
         </TabsContent>
 
         <TabsContent value="recommendations" className="pt-4">
-          <InertTabPlaceholder text="Per-artefact PQC migration recommendations arrive in a later phase." />
+          <RecommendationsTab scanId={scan.id} />
         </TabsContent>
 
         <TabsContent value="export" className="pt-4">
-          <InertTabPlaceholder text="CycloneDX 1.6 CBOM download and report export arrive in a later phase." />
+          <ExportTab scanId={scan.id} />
         </TabsContent>
       </Tabs>
 
@@ -459,11 +459,191 @@ function MetaCard({ meta }: { meta: Array<[string, string]> }) {
   )
 }
 
-/** Placeholder body for a tab whose real UI ships in a later phase. */
-function InertTabPlaceholder({ text }: { text: string }) {
+function RecommendationsTab({ scanId }: { scanId: string }) {
+  const [artefacts, setArtefacts] = useState<Artefact[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    let cancelled = false
+    async function load(): Promise<void> {
+      try {
+        const res = await api.getArtefacts(scanId, { page: 1, page_size: 500 })
+        if (!cancelled) setArtefacts(res.items)
+      } finally {
+        if (!cancelled) setLoading(false)
+      }
+    }
+    void load()
+    return () => { cancelled = true }
+  }, [scanId])
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-4">
+        <Skeleton className="h-24 w-full" />
+        <Skeleton className="h-24 w-full" />
+      </div>
+    )
+  }
+
+  const groups = new Map<string, {
+    count: number
+    riskCounts: Map<string, number>
+    recommendation: Artefact['recommendation']
+  }>()
+
+  for (const a of artefacts) {
+    const existing = groups.get(a.algorithm_family)
+    if (existing) {
+      existing.count++
+      existing.riskCounts.set(
+        a.risk_assessment.risk_level,
+        (existing.riskCounts.get(a.risk_assessment.risk_level) ?? 0) + 1,
+      )
+    } else {
+      const riskCounts = new Map<string, number>()
+      riskCounts.set(a.risk_assessment.risk_level, 1)
+      groups.set(a.algorithm_family, {
+        count: 1,
+        riskCounts,
+        recommendation: a.recommendation,
+      })
+    }
+  }
+
+  if (groups.size === 0) {
+    return (
+      <Card>
+        <CardContent className="pt-6 text-sm text-muted-foreground">
+          No detections in this scan — no recommendations to display.
+        </CardContent>
+      </Card>
+    )
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      {[...groups.entries()].map(([family, group]) => {
+        const riskParts = [...group.riskCounts.entries()]
+          .sort((a, b) => {
+            const order = ['critical', 'high', 'medium', 'low', 'quantum-safe']
+            return order.indexOf(a[0]) - order.indexOf(b[0])
+          })
+          .map(([level, count]) => {
+            const label = RISK_LABELS[level] ?? level
+            const color = RISK_COLORS[level] ?? undefined
+            return (
+              <span key={level} className="font-medium" style={{ color }}>
+                {count} {label}{count !== 1 ? 's' : ''}
+              </span>
+            )
+          })
+
+        const riskProfile = riskParts.reduce<ReactNode[]>((acc, part, i) => {
+          if (i > 0) acc.push(<span key={`sep-${i}`} className="text-muted-foreground">, </span>)
+          acc.push(part)
+          return acc
+        }, [])
+
+        return (
+          <Card key={family}>
+            <CardHeader className="pb-2">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <CardTitle className="text-base">{family}</CardTitle>
+                  <CardDescription>
+                    {group.count} artefact{group.count !== 1 ? 's' : ''} affected — {riskProfile}
+                  </CardDescription>
+                </div>
+                <Badge variant="outline" className="shrink-0">
+                  {group.count}
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">Recommended replacement</p>
+                <p className="font-medium">{group.recommendation.recommended_algorithm}</p>
+              </div>
+              <div>
+                <p className="text-xs font-medium text-muted-foreground">FIPS reference</p>
+                <p className="font-medium">{group.recommendation.fips_reference}</p>
+              </div>
+              <div className="sm:col-span-2">
+                <p className="text-xs font-medium text-muted-foreground">Rationale</p>
+                <p>{group.recommendation.rationale}</p>
+              </div>
+            </CardContent>
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
+
+function triggerDownload(blob: Blob, filename: string): void {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
+}
+
+function ExportTab({ scanId }: { scanId: string }) {
+  const [downloading, setDownloading] = useState<'cbom' | 'report' | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function handleDownload(type: 'cbom' | 'report'): Promise<void> {
+    setError(null)
+    setDownloading(type)
+    try {
+      const result = type === 'cbom'
+        ? await api.downloadCbom(scanId)
+        : await api.downloadReport(scanId)
+      triggerDownload(result.blob, result.filename)
+    } catch (err) {
+      setError(apiErrorMessage(err))
+    } finally {
+      setDownloading(null)
+    }
+  }
+
   return (
     <Card>
-      <CardContent className="pt-6 text-sm text-muted-foreground">{text}</CardContent>
+      <CardHeader>
+        <CardTitle className="text-base">Download exports</CardTitle>
+        <CardDescription>
+          Export the full CycloneDX 1.6 CBOM or the executive summary report.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        {error !== null && (
+          <Alert variant="destructive">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        <div className="flex gap-4">
+          <Button
+            variant="outline"
+            disabled={downloading !== null}
+            onClick={() => { void handleDownload('cbom') }}
+          >
+            <Download className="mr-2 size-4" />
+            {downloading === 'cbom' ? 'Downloading…' : 'Download CBOM (CycloneDX 1.6 JSON)'}
+          </Button>
+          <Button
+            variant="outline"
+            disabled={downloading !== null}
+            onClick={() => { void handleDownload('report') }}
+          >
+            <Download className="mr-2 size-4" />
+            {downloading === 'report' ? 'Downloading…' : 'Download Report'}
+          </Button>
+        </div>
+      </CardContent>
     </Card>
   )
 }

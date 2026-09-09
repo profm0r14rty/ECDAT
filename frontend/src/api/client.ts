@@ -224,6 +224,44 @@ export const api = {
     return data
   },
 
+  /**
+   * `GET /api/scans/{id}/cbom` — download the CycloneDX 1.6 CBOM as a blob.
+   *
+   * Returns the raw blob plus the filename from the Content-Disposition header
+   * (falls back to `cbom-<scanId>.json` when the header is absent).
+   */
+  async downloadCbom(
+    scanId: string,
+  ): Promise<{ blob: Blob; filename: string }> {
+    const { data, headers } = await http.get<Blob>(
+      `/api/scans/${encodeURIComponent(scanId)}/cbom`,
+      { responseType: 'blob' },
+    )
+    return {
+      blob: data,
+      filename: _filenameFromDisposition(headers, `cbom-${scanId}.json`),
+    }
+  },
+
+  /**
+   * `GET /api/scans/{id}/report` — download the summary report as a JSON blob.
+   *
+   * Returns the raw blob plus the filename from the Content-Disposition header
+   * (falls back to `report-<scanId>.json` when the header is absent).
+   */
+  async downloadReport(
+    scanId: string,
+  ): Promise<{ blob: Blob; filename: string }> {
+    const { data, headers } = await http.get<Blob>(
+      `/api/scans/${encodeURIComponent(scanId)}/report`,
+      { responseType: 'blob' },
+    )
+    return {
+      blob: data,
+      filename: _filenameFromDisposition(headers, `report-${scanId}.json`),
+    }
+  },
+
   /** `PATCH /api/scans/{id}/artefacts/{detectionId}` — override risk params. */
   async patchArtefact(
     scanId: string,
@@ -236,6 +274,22 @@ export const api = {
     )
     return data
   },
+}
+
+/**
+ * Extract the filename from a Content-Disposition header, e.g.
+ * `attachment; filename="cbom.json"` → `"cbom.json"`.
+ * Returns the provided `fallback` when the header is absent or malformed.
+ */
+function _filenameFromDisposition(
+  headers: unknown,
+  fallback: string = 'download.json',
+): string {
+  if (headers === null || typeof headers !== 'object') return fallback
+  const header = (headers as Record<string, unknown>)['content-disposition']
+  const headerStr = typeof header === 'string' ? header : ''
+  const match = /filename="?([^";\n]+)"?/i.exec(headerStr)
+  return match?.[1]?.trim() ?? fallback
 }
 
 export default api
