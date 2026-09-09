@@ -24,6 +24,7 @@ import {
   RiskLevelBadge,
   StatusDash,
 } from './badges'
+import MoscaTimeline from './MoscaTimeline'
 
 /** Props for {@link ArtefactDetailDialog}. */
 interface ArtefactDetailDialogProps {
@@ -203,13 +204,21 @@ export default function ArtefactDetailDialog({
           <div className="rounded-md border p-3">
             <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
               <FlaskConical className="size-3.5" />
-              Mosca's inequality — urgency = (migration + shelf-life) / threat
-              horizon
+              Mosca's inequality — urgency = (X + Y) / Z
             </p>
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+            <MoscaTimeline
+              risk={ra}
+              classicallyBroken={artefact.classically_broken}
+              quantumVulnerable={artefact.quantum_vulnerable}
+            />
+            <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 border-t pt-3 text-sm">
               <MetaItem label="Shelf life (Y)" value={`${formatNumber(ra.shelf_life_years)} yr`} />
               <MetaItem label="Migration (X)" value={`${formatNumber(ra.migration_time_years)} yr`} />
-              <MetaItem label="Threat horizon (Z)" value={`${formatNumber(ra.threat_horizon_years)} yr`} />
+              <MetaItem label="Threat horizon (Z)" value={
+                artefact.classically_broken
+                  ? 'N/A — already broken'
+                  : `${formatNumber(ra.threat_horizon_years)} yr`
+              } />
               <div className="flex items-center gap-2">
                 <MetaItem label="Urgency" value={`${formatNumber(ra.urgency_ratio)}`} />
                 {ra.mosca_violation && (
