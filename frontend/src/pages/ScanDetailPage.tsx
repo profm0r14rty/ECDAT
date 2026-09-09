@@ -1,12 +1,14 @@
 import { useEffect, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Loader2 } from 'lucide-react'
+import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts'
 
 import {
   api,
   apiErrorMessage,
   type ScanRunDetail,
   type ScanStatus,
+  type Artefact,
 } from '@/api/client'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -26,6 +28,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import { formatDateTime } from '@/lib/format'
+import { RISK_COLORS, RISK_LABELS } from '@/lib/colors'
 
 /** Poll interval while a scan is queued or running (milliseconds). */
 const POLL_INTERVAL_MS = 1500
@@ -47,17 +50,6 @@ const STATUS_LABEL: Record<ScanStatus, string> = {
   running: 'Running — analysing codebase',
   done: 'Done',
   failed: 'Failed',
-}
-
-const RISK_LEVEL_VARIANT: Record<
-  string,
-  'destructive' | 'secondary' | 'outline'
-> = {
-  critical: 'destructive',
-  high: 'destructive',
-  medium: 'outline',
-  low: 'outline',
-  'quantum-safe': 'secondary',
 }
 
 export default function ScanDetailPage() {
@@ -210,9 +202,8 @@ function FailedState({
 }
 
 /**
- * Done state: a placeholder overview ("scan complete, N detections found")
- * behind inert tabs ready for Overview / Artefacts / Recommendations / Export
- * to be filled in per phase. The real overview UI ships in a later phase.
+ * Done state: overview with stat cards, risk distribution chart,
+ * and top-5 urgency artefacts.
  */
 function DoneState({
   scan,
@@ -221,8 +212,40 @@ function DoneState({
   scan: ScanRunDetail
   meta: Array<[string, string]>
 }) {
-  const detections = scan.summary?.total_detections ?? scan.files_scanned
   const summary = scan.summary
+  const [artefacts, setArtefacts] = useState<Artefact[]>([])
+
+  // Fetch artefacts once when the scan is done (to compute classically-broken count client-side)
+  useEffect(() => {
+    if (scan.id === undefined || scan.status !== 'done') return
+    let cancelled = false
+
+    async function loadArtefacts(): Promise<void> {
+      try {
+        const res = await api.getArtefacts(scan.id, { page: 1, page_size: 500 })
+        if (!cancelled) setArtefacts(res.items)
+      } catch {
+        // Silently ignore artefact fetch errors; the summary still renders
+      }
+    }
+
+    void loadArtefacts()
+    return () => { cancelled = true }
+  }, [scan.id, scan.status])
+
+  // Compute classically-broken count client-side from the artefacts
+  const classicallyBrokenCount = artefacts.filter((a) => a.classically_broken).length
+
+  // Build chart data: only include levels with count > 0 to avoid empty slices
+  const chartData = summary
+    ? (Object.entries(summary.risk_level_counts) as Array<[string, number]>)
+        .filter(([, count]) => count > 0)
+        .map(([level, count]) => ({
+          name: RISK_LABELS[level] ?? level,
+          value: count,
+          level,
+        }))
+    : []
 
   return (
     <>
@@ -230,10 +253,9 @@ function DoneState({
         <CardHeader>
           <CardTitle>Scan complete</CardTitle>
           <CardDescription>
-            {detections !== null && detections !== undefined
-              ? `${detections} detections found`
+            {summary !== null
+              ? `${summary.total_detections} detections found`
               : 'No detections recorded'}
-            . The full overview lands in a later phase.
           </CardDescription>
         </CardHeader>
       </Card>
@@ -247,52 +269,128 @@ function DoneState({
         </TabsList>
 
         <TabsContent value="overview" className="flex flex-col gap-6 pt-4">
+          {/* Stat cards */}
           {summary !== null && (
-            <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-3xl">
-                    {summary.total_detections}
-                  </CardTitle>
-                  <CardDescription>Total detections</CardDescription>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-3xl">
-                    {summary.quantum_vulnerable_count}
-                  </CardTitle>
-                  <CardDescription>Quantum vulnerable</CardDescription>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-3xl">
-                    {summary.quantum_vulnerable_percentage.toFixed(1)}%
-                  </CardTitle>
-                  <CardDescription>Vulnerable share</CardDescription>
-                </CardHeader>
-              </Card>
-              <Card>
-                <CardHeader>
-                  <div className="flex flex-wrap gap-1.5">
-                    {Object.entries(summary.risk_level_counts).map(
-                      ([level, count]) => (
-                        <Badge
-                          key={level}
-                          variant={RISK_LEVEL_VARIANT[level] ?? 'outline'}
-                        >
-                          {level}: {count}
-                        </Badge>
-                      ),
-                    )}
-                  </div>
-                  <CardDescription className="pt-2">Risk levels</CardDescription>
-                </CardHeader>
-              </Card>
+            <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
+              <StatCard
+                value={summary.total_detections}
+                label="Total detections"
+              />
+              <StatCard
+                value={scan.files_scanned ?? 0}
+                label="Files scanned"
+              />
+              <StatCard
+                value={summary.quantum_vulnerable_count}
+                label="Quantum vulnerable"
+                highlight="destructive"
+              />
+              <StatCard
+                value={`${summary.quantum_vulnerable_percentage.toFixed(1)}%`}
+                label="Vulnerable share"
+                highlight="destructive"
+              />
+              <StatCard
+                value={classicallyBrokenCount}
+                label="Classically broken"
+                highlight="destructive"
+              />
             </div>
           )}
-          <InertTabPlaceholder text="Detailed overview, charts and risk distribution arrive in a later phase." />
+
+          {/* Risk distribution chart + Top-5 urgency side-by-side on larger screens */}
+          <div className="grid gap-6 md:grid-cols-2">
+            {/* Risk distribution pie chart */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Risk distribution</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {chartData.length > 0 ? (
+                  <div className="flex justify-center">
+                    <PieChart width={320} height={260}>
+                      <Pie
+                        data={chartData}
+                        dataKey="value"
+                        nameKey="name"
+                        cx="50%"
+                        cy="50%"
+                        outerRadius={90}
+                        label={({ name, value }) => `${name}: ${value}`}
+                      >
+                        {chartData.map((entry) => (
+                          <Cell
+                            key={entry.level}
+                            fill={RISK_COLORS[entry.level] ?? '#94a3b8'}
+                          />
+                        ))}
+                      </Pie>
+                      <Tooltip />
+                      <Legend />
+                    </PieChart>
+                  </div>
+                ) : (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    No risk data available
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+
+            {/* Top-5 highest-urgency artefacts */}
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Top-5 highest urgency</CardTitle>
+                <CardDescription>
+                  Artefacts requiring migration attention first
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                {summary?.top_5_urgency && summary.top_5_urgency.length > 0 ? (
+                  <ol className="flex flex-col gap-2">
+                    {summary.top_5_urgency.map((item, idx) => (
+                      <li
+                        key={item.detection_id}
+                        className="flex items-start gap-3 rounded-md border px-3 py-2 text-sm"
+                      >
+                        <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+                          {idx + 1}
+                        </span>
+                        <div className="flex flex-col gap-0.5">
+                          <div className="flex items-center gap-2">
+                            <Badge
+                              variant="outline"
+                              className="text-xs"
+                              style={{
+                                color: RISK_COLORS[item.risk_level] ?? undefined,
+                                borderColor:
+                                  RISK_COLORS[item.risk_level] ?? undefined,
+                              }}
+                            >
+                              {item.risk_level}
+                            </Badge>
+                            <span className="font-medium">
+                              {item.algorithm_family}
+                            </span>
+                            <span className="ml-auto font-mono text-xs text-muted-foreground">
+                              urgency {item.urgency_ratio.toFixed(1)}
+                            </span>
+                          </div>
+                          <span className="truncate text-xs text-muted-foreground">
+                            {item.file_path}
+                          </span>
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
+                ) : (
+                  <p className="py-8 text-center text-sm text-muted-foreground">
+                    No urgency data available
+                  </p>
+                )}
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
         <TabsContent value="artefacts" className="pt-4">
@@ -310,6 +408,32 @@ function DoneState({
 
       <MetaCard meta={meta} />
     </>
+  )
+}
+
+/** Single stat card with a large value and descriptive label. */
+function StatCard({
+  value,
+  label,
+  highlight,
+}: {
+  value: number | string
+  label: string
+  highlight?: 'destructive'
+}) {
+  return (
+    <Card>
+      <CardContent className="pt-4">
+        <p
+          className={`text-2xl font-bold tracking-tight ${
+            highlight === 'destructive' ? 'text-red-600' : ''
+          }`}
+        >
+          {value}
+        </p>
+        <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
+      </CardContent>
+    </Card>
   )
 }
 
