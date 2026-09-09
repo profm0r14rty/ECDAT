@@ -136,3 +136,5 @@ pytest_cache/
 
 # ---------------- OpenCode (agent state) ----------------
 .omo/
+# ---------------- Playwright MCP artifacts ----------------
+.playwright-mcp/

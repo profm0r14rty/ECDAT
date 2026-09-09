@@ -48,6 +48,14 @@ Type-hinted Python, Pydantic v2 models, pytest for all new logic, small single-p
 ## Backend Conventions (Batch 2+)
 FastAPI + SQLAlchemy 2.0 (typed `Mapped[...]` style) + Alembic migrations + Postgres for persistence, Redis for job status only (not a message broker — background work runs via FastAPI `BackgroundTasks`, not Celery, to avoid extra infra under the hackathon deadline). The API layer never duplicates `ecdat_core` logic — it calls into `ecdat_core.cli.run_scan` (or an equivalent orchestrator function) and persists the resulting `ScanResult`.
 
+## Frontend Conventions (Batch 3+)
+- Stack: Vite + React 19 + TypeScript + Tailwind CSS v4 (via the `@tailwindcss/vite` plugin — no `tailwind.config.js`/`postcss.config.js`; v4 is configured in `src/index.css` + `vite.config.ts`), shadcn/ui (`components.json` base: `radix`, `baseColor: neutral`), React Router 7 (`createBrowserRouter`), Recharts for charts, axios for HTTP.
+- Components come from `npx shadcn@latest add <component>` — add through the CLI (it resolves registry + CSS vars), never hand-write `components.json`-tracked files. Import via `@/components/ui/...` (path alias `@/* -> src/*` lives in `vite.config.ts` and `tsconfig.app.json`).
+- **Never call `fetch`/`axios` directly in a component** — always go through `frontend/src/api/client.ts` (`api.getHealth/createScan/listScans/getScan/getArtefacts/getCbom/getReport/patchArtefact`) so response shapes stay in one place. Its TypeScript interfaces mirror the Pydantic response models in `backend/app/routers/scans.py` 1:1 — when the backend models change, update the client too.
+- Base URL: `VITE_API_BASE_URL` env var. Unset (default) → same-origin, meaning Vite's dev proxy (`vite.config.ts` `server.proxy`, forwards `/api` and `/health` to `http://localhost:8000`) handles calls with zero CORS. Set it (e.g. `http://localhost:8000` to hit a containerized API directly) → the backend's CORS middleware must allow the origin (`CORS_ORIGINS` env, comma-separated, default = Vite dev origins `http://localhost:5173`).
+- Routing: `src/App.tsx` — `/` = scan list + new-scan form, `/scans/:id` = scan detail (grows into overview/artefacts/etc. as tabs or sub-routes). Pages live in `src/pages/`.
+- Commands (from `frontend/`): `npm run dev` (dev server + proxy), `npm run build` (`tsc -b && vite build` — must stay TS-error-free). Run `tsc -b` via the build before claiming a phase done.
+
 ## Workflow
 - Work is broken into numbered phases (Batch 1 = Phases 0–8, done; Fix Pass = Fix Phase 1–4; Batch 2 = Phases 9–15; further batches TBD).
 - After each phase: run the full test suite, update `progress.md` (one row per phase: Status/Commit/Notes), commit with message `"Phase N: <description>"` or `"Fix Phase N: <description>"`.
