@@ -1,0 +1,44 @@
+# ECDAT .dockerignore — keeps the Docker build context (repo root) lean.
+# Anything listed here is NOT sent to the image build, so it must not be
+# needed by backend/Dockerfile.
+
+# Virtual environments (huge)
+test_virt_env/
+.venv/
+venv/
+env/
+
+# Python caches / build artifacts
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+build/
+dist/
+
+# Local databases
+app.db
+*.db
+*.sqlite3
+*.rdb
+
+# Env / secrets (compose still reads .env from the host; it just isn't baked
+# into the image)
+.env
+.env.*
+
+# Node / frontend (Batch 3 — not part of the API image)
+frontend/
+node_modules/
+dist-ssr/
+
+# Git, agent state, personal dirs
+.git/
+.gitignore
+AGENTS.md
+.omo/
+Codes/
+logs/

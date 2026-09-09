@@ -37,3 +37,12 @@ def run_migrations_online() -> None:
         )
         with context.begin_transaction():
             context.run_migrations()
+
+
+# Phase 14: this dispatch block was previously missing, so env.py defined the
+# two runners above but never executed them — `alembic upgrade head` loaded the
+# file and exited 0 without creating a single table.
+if context.is_offline_mode():
+    run_migrations_offline()
+else:
+    run_migrations_online()

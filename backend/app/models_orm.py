@@ -73,6 +73,17 @@ class RiskLevel(str, enum.Enum):
     quantum_safe = "quantum-safe"
 
 
+def _enum_values(enum_class: type[enum.Enum]) -> list[str]:
+    """``values_callable`` for SQLAlchemy Enum columns.
+
+    SQLAlchemy persists member *names* by default; PostgreSQL then enforces
+    those names as the native enum labels, which silently diverges from the
+    API-facing ``member.value`` strings (e.g. ``"quantum-safe"``). Returning
+    the values keeps the database labels aligned with the API/CBOM payloads.
+    """
+    return [member.value for member in enum_class]
+
+
 # ---------------------------------------------------------------------------
 # ScanRun
 # ---------------------------------------------------------------------------
@@ -87,8 +98,12 @@ class ScanRun(Base):
         primary_key=True, default=_uuid_str, unique=True
     )
     target: Mapped[str]
-    source_type: Mapped[SourceType] = mapped_column(SQLEnum(SourceType))
-    status: Mapped[ScanStatus] = mapped_column(SQLEnum(ScanStatus))
+    source_type: Mapped[SourceType] = mapped_column(
+        SQLEnum(SourceType, values_callable=_enum_values)
+    )
+    status: Mapped[ScanStatus] = mapped_column(
+        SQLEnum(ScanStatus, values_callable=_enum_values)
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime, default=lambda: datetime.now(timezone.utc)
     )
@@ -116,7 +131,9 @@ class DetectionRow(Base):
     file_path: Mapped[str]
     line_number: Mapped[int]
     matched_text: Mapped[str]
-    asset_type: Mapped[DetectionAssetType]
+    asset_type: Mapped[DetectionAssetType] = mapped_column(
+        SQLEnum(DetectionAssetType, values_callable=_enum_values)
+    )
     algorithm_family: Mapped[str]
     key_size_bits: Mapped[int | None] = mapped_column(nullable=True)
     quantum_vulnerable: Mapped[bool]
@@ -151,7 +168,9 @@ class RiskAssessmentRow(Base):
     shelf_life_years: Mapped[float]
     threat_horizon_years: Mapped[float]
     urgency_ratio: Mapped[float]
-    risk_level: Mapped[RiskLevel]
+    risk_level: Mapped[RiskLevel] = mapped_column(
+        SQLEnum(RiskLevel, values_callable=_enum_values)
+    )
     mosca_violation: Mapped[bool]
 
 
