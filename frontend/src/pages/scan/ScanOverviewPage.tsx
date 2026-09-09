@@ -1,21 +1,36 @@
 /**
- * Scan overview page: stat cards, risk distribution pie chart, top-5
- * highest-urgency artefacts, and in-flight / failure states.
+ * Scan overview page: stat cards, risk-distribution pie, algorithm-mix
+ * donut, exposure-by-family stacked bar, and actionable top-5 priority cards.
  *
- * Extracted from ScanDetailPage.tsx (Phase 22) into a standalone route
- * component for the Phase 24 routing restructure. No content changes.
+ * Phase 26: reskin to --color-surface / --color-accent design-token system
+ * (Phase 24 tokens), add donut + stacked-bar charts, reframe top-5 as
+ * actionable recommendation cards with artefact-detail links, and add
+ * count-up animation on stat numbers + hover-lift micro-interaction on
+ * all cards.
  */
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2 } from 'lucide-react'
-import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts'
+import { Loader2, ArrowRight } from 'lucide-react'
+import {
+  PieChart,
+  Pie,
+  Cell,
+  Tooltip,
+  Legend,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+} from 'recharts'
 
 import {
   api,
   type ScanRunDetail,
   type ScanStatus,
   type Artefact,
+  type RiskLevel,
 } from '@/api/client'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -28,39 +43,68 @@ import {
   CardTitle,
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
+import { truncatePath } from '@/lib/paths'
 import { formatDateTime } from '@/lib/format'
 import { usePageTitle } from '@/lib/pageTitle'
 import { RISK_COLORS, RISK_LABELS } from '@/lib/colors'
 import { useScan } from '@/lib/scanContext'
+import { useCountUp } from '@/lib/useCountUp'
 
 // -------------------------------------------------------------------
-// Inline sub-components (carried from Phase 22 ScanDetailPage.tsx)
+// Chart palette — distinct hues for algorithm families
 // -------------------------------------------------------------------
 
-/** Single stat card with a large value and descriptive label. */
+const FAMILY_PALETTE = [
+  '#44e0a4', // accent green
+  '#60a5fa', // blue
+  '#f472b6', // pink
+  '#fbbf24', // amber
+  '#a78bfa', // violet
+  '#34d399', // emerald
+  '#fb923c', // orange
+  '#f87171', // red
+  '#38bdf8', // sky
+  '#c084fc', // purple
+  '#2dd4bf', // teal
+  '#e879f9', // fuchsia
+]
+
+// -------------------------------------------------------------------
+// Inline sub-components
+// -------------------------------------------------------------------
+
+/** Animated stat card with count-up number + hover-lift micro-interaction. */
 function StatCard({
   value,
   label,
   highlight,
   loading = false,
+  numericValue,
 }: {
   value: number | string | undefined
   label: string
-  highlight?: 'destructive'
+  highlight?: 'accent'
   loading?: boolean
+  numericValue?: number
 }) {
+  const countRef = useCountUp(numericValue ?? 0)
+
   return (
-    <Card>
+    <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
       <CardContent className="pt-4">
         {loading ? (
           <Skeleton className="h-8 w-16" aria-label={`Loading ${label}`} />
         ) : (
           <p
             className={`text-2xl font-bold tracking-tight ${
-              highlight === 'destructive' ? 'text-red-600' : ''
+              highlight === 'accent' ? 'text-accent' : ''
             }`}
           >
-            {value}
+            {numericValue !== undefined ? (
+              <span ref={countRef}>0</span>
+            ) : (
+              value
+            )}
           </p>
         )}
         <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
@@ -72,7 +116,7 @@ function StatCard({
 /** Scan-run metadata row (source, created, completed, files scanned). */
 function MetaCard({ meta }: { meta: Array<[string, string]> }) {
   return (
-    <Card>
+    <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
       <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-2 pt-6 text-sm">
         {meta.map(([label, value]) => (
           <span key={label}>
@@ -100,7 +144,7 @@ function ScanningState({
   }
   return (
     <>
-      <Card>
+      <Card className="bg-surface">
         <CardContent className="flex items-center gap-4 py-8">
           <Loader2 className="size-5 animate-spin text-muted-foreground" />
           <div>
@@ -138,7 +182,52 @@ function FailedState({
 }
 
 // -------------------------------------------------------------------
-// Done state: overview with stat cards, pie chart, and top-5
+// Exposure-by-family stacked bar data (computed from artefacts)
+// -------------------------------------------------------------------
+
+const RISK_LEVEL_ORDER: RiskLevel[] = [
+  'critical',
+  'high',
+  'medium',
+  'low',
+  'quantum-safe',
+]
+
+interface FamilyRiskRow {
+  family: string
+  critical: number
+  high: number
+  medium: number
+  low: number
+  'quantum-safe': number
+}
+
+function computeFamilyRiskData(artefacts: Artefact[]): FamilyRiskRow[] {
+  const map = new Map<string, Record<string, number>>()
+  for (const a of artefacts) {
+    if (!map.has(a.algorithm_family)) {
+      map.set(a.algorithm_family, {
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+        'quantum-safe': 0,
+      })
+    }
+    const bucket = map.get(a.algorithm_family)!
+    bucket[a.risk_assessment.risk_level] =
+      (bucket[a.risk_assessment.risk_level] ?? 0) + 1
+  }
+  return Array.from(map.entries())
+    .map(([family, counts]) => ({
+      family,
+      ...counts,
+    } as FamilyRiskRow))
+    .sort((a, b) => b.critical - a.critical)
+}
+
+// -------------------------------------------------------------------
+// Done state: overview with all charts + actionable top-5
 // -------------------------------------------------------------------
 
 function DoneState({
@@ -158,7 +247,10 @@ function DoneState({
 
     async function loadArtefacts(): Promise<void> {
       try {
-        const res = await api.getArtefacts(scan.id, { page: 1, page_size: 500 })
+        const res = await api.getArtefacts(scan.id, {
+          page: 1,
+          page_size: 500,
+        })
         if (!cancelled) setArtefacts(res.items)
       } catch {
         // Silently ignore artefact fetch errors; the summary still renders
@@ -168,12 +260,17 @@ function DoneState({
     }
 
     void loadArtefacts()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [scan.id, scan.status])
 
-  const classicallyBrokenCount = artefacts.filter((a) => a.classically_broken).length
+  const classicallyBrokenCount = artefacts.filter(
+    (a) => a.classically_broken,
+  ).length
 
-  const chartData = summary
+  // --- Risk distribution pie data ---
+  const pieData = summary
     ? (Object.entries(summary.risk_level_counts) as Array<[string, number]>)
         .filter(([, count]) => count > 0)
         .map(([level, count]) => ({
@@ -183,9 +280,30 @@ function DoneState({
         }))
     : []
 
+  // --- Algorithm-mix donut data ---
+  const donutData = useMemo(() => {
+    if (!summary) return []
+    return Object.entries(summary.algorithm_family_counts)
+      .filter(([, count]) => count > 0)
+      .map(([family, count]) => ({ name: family, value: count }))
+      .sort((a, b) => b.value - a.value)
+  }, [summary])
+
+  // --- Exposure-by-family stacked bar data ---
+  const familyRiskData = useMemo(
+    () => (artefacts.length > 0 ? computeFamilyRiskData(artefacts) : []),
+    [artefacts],
+  )
+
+  // --- Lookup artefact by detection_id for actionable top-5 ---
+  const artefactMap = useMemo(
+    () => new Map(artefacts.map((a) => [a.id, a])),
+    [artefacts],
+  )
+
   return (
     <>
-      <Card>
+      <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
         <CardHeader>
           <CardTitle>Scan complete</CardTitle>
           <CardDescription>
@@ -202,43 +320,49 @@ function DoneState({
           <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
             <StatCard
               value={summary.total_detections}
+              numericValue={summary.total_detections}
               label="Total detections"
             />
             <StatCard
               value={scan.files_scanned ?? 0}
+              numericValue={scan.files_scanned ?? 0}
               label="Files scanned"
             />
             <StatCard
               value={summary.quantum_vulnerable_count}
+              numericValue={summary.quantum_vulnerable_count}
               label="Quantum vulnerable"
-              highlight="destructive"
+              highlight="accent"
             />
             <StatCard
-              value={summary.quantum_vulnerable_percentage.toFixed(1) + '%'}
+              value={
+                summary.quantum_vulnerable_percentage.toFixed(1) + '%'
+              }
               label="Vulnerable share"
-              highlight="destructive"
+              highlight="accent"
             />
             <StatCard
               value={loadingArtefacts ? undefined : classicallyBrokenCount}
+              numericValue={loadingArtefacts ? undefined : classicallyBrokenCount}
               label="Classically broken"
-              highlight="destructive"
+              highlight="accent"
               loading={loadingArtefacts}
             />
           </div>
         )}
 
-        {/* Risk distribution chart + Top-5 urgency side-by-side */}
+        {/* Row 1: Risk distribution pie + Algorithm mix donut */}
         <div className="grid gap-6 md:grid-cols-2">
-          <Card>
+          <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
             <CardHeader>
               <CardTitle className="text-base">Risk distribution</CardTitle>
             </CardHeader>
             <CardContent>
-              {chartData.length > 0 ? (
+              {pieData.length > 0 ? (
                 <div className="flex justify-center">
                   <PieChart width={320} height={260}>
                     <Pie
-                      data={chartData}
+                      data={pieData}
                       dataKey="value"
                       nameKey="name"
                       cx="50%"
@@ -246,7 +370,7 @@ function DoneState({
                       outerRadius={90}
                       label={({ name, value }) => `${name}: ${value}`}
                     >
-                      {chartData.map((entry) => (
+                      {pieData.map((entry) => (
                         <Cell
                           key={entry.level}
                           fill={RISK_COLORS[entry.level] ?? '#94a3b8'}
@@ -265,58 +389,188 @@ function DoneState({
             </CardContent>
           </Card>
 
-          <Card>
+          <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
             <CardHeader>
-              <CardTitle className="text-base">Top-5 highest urgency</CardTitle>
+              <CardTitle className="text-base">Algorithm mix</CardTitle>
               <CardDescription>
-                Artefacts requiring migration attention first
+                Distribution of detected algorithm families
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {summary?.top_5_urgency && summary.top_5_urgency.length > 0 ? (
-                <ol className="flex flex-col gap-2">
-                  {summary.top_5_urgency.map((item, idx) => (
+              {donutData.length > 0 ? (
+                <div className="flex justify-center">
+                  <PieChart width={320} height={260}>
+                    <Pie
+                      data={donutData}
+                      dataKey="value"
+                      nameKey="name"
+                      cx="50%"
+                      cy="50%"
+                      innerRadius={55}
+                      outerRadius={90}
+                      label={({ name, value }) => `${name}: ${value}`}
+                    >
+                      {donutData.map((_, idx) => (
+                        <Cell
+                          key={`donut-${idx}`}
+                          fill={FAMILY_PALETTE[idx % FAMILY_PALETTE.length]}
+                        />
+                      ))}
+                    </Pie>
+                    <Tooltip />
+                    <Legend />
+                  </PieChart>
+                </div>
+              ) : (
+                <p className="py-8 text-center text-sm text-muted-foreground">
+                  No algorithm data available
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Row 2: Exposure by algorithm family stacked bar */}
+        {familyRiskData.length > 0 && (
+          <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
+            <CardHeader>
+              <CardTitle className="text-base">
+                Exposure by algorithm family
+              </CardTitle>
+              <CardDescription>
+                Artefact count per family, stacked by risk level
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex justify-center">
+                <BarChart
+                  width={640}
+                  height={300}
+                  data={familyRiskData}
+                  margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
+                >
+                  <CartesianGrid
+                    strokeDasharray="3 3"
+                    stroke="oklch(1 0 0 / 12%)"
+                  />
+                  <XAxis
+                    dataKey="family"
+                    tick={{ fill: 'oklch(0.65 0.015 160)', fontSize: 12 }}
+                  />
+                  <YAxis
+                    allowDecimals={false}
+                    tick={{ fill: 'oklch(0.65 0.015 160)', fontSize: 12 }}
+                  />
+                  <Tooltip
+                    contentStyle={{
+                      background: '#0b1a12',
+                      border: '1px solid oklch(1 0 0 / 12%)',
+                      borderRadius: '0.5rem',
+                    }}
+                  />
+                  {RISK_LEVEL_ORDER.map((level) => (
+                    <Bar
+                      key={level}
+                      dataKey={level}
+                      stackId="family"
+                      fill={RISK_COLORS[level]}
+                      name={RISK_LABELS[level]}
+                    />
+                  ))}
+                </BarChart>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Row 3: Actionable top-5 priority cards */}
+        <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
+          <CardHeader>
+            <CardTitle className="text-base">
+              Priority actions
+            </CardTitle>
+            <CardDescription>
+              Highest-urgency artefacts — act on these first
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {summary?.top_5_urgency &&
+            summary.top_5_urgency.length > 0 ? (
+              <ol className="flex flex-col gap-2">
+                {summary.top_5_urgency.map((item, idx) => {
+                  const artefact = artefactMap.get(item.detection_id)
+                  const recommended =
+                    artefact?.recommendation?.recommended_algorithm
+                  return (
                     <li
                       key={item.detection_id}
-                      className="flex items-start gap-3 rounded-md border px-3 py-2 text-sm"
+                      className="flex items-start gap-3 rounded-md border border-border bg-bg/40 px-3 py-2.5 text-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-accent/5"
                     >
-                      <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+                      <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold text-accent">
                         {idx + 1}
                       </span>
-                      <div className="flex flex-col gap-0.5">
+                      <div className="flex flex-1 flex-col gap-1">
                         <div className="flex items-center gap-2">
                           <Badge
                             variant="outline"
                             className="text-xs"
                             style={{
                               color: RISK_COLORS[item.risk_level] ?? undefined,
-                              borderColor: RISK_COLORS[item.risk_level] ?? undefined,
+                              borderColor:
+                                RISK_COLORS[item.risk_level] ?? undefined,
                             }}
                           >
                             {item.risk_level}
                           </Badge>
                           <span className="font-medium">
-                            {item.algorithm_family}
-                          </span>
-                          <span className="ml-auto font-mono text-xs text-muted-foreground">
-                            urgency {item.urgency_ratio.toFixed(1)}
+                            {recommended
+                              ? `Replace ${item.algorithm_family}`
+                              : item.algorithm_family}
                           </span>
                         </div>
-                        <span className="truncate text-xs text-muted-foreground">
-                          {item.file_path}
-                        </span>
+                        <p className="text-xs text-muted-foreground">
+                          {recommended ? (
+                            <>
+                              in{' '}
+                              <span className="font-mono text-foreground/70">
+                                {truncatePath(item.file_path, 60)}
+                              </span>{' '}
+                              with{' '}
+                              <span className="font-medium text-accent-soft">
+                                {recommended}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="font-mono text-foreground/70">
+                              {truncatePath(item.file_path, 60)}
+                            </span>
+                          )}
+                        </p>
                       </div>
+                      <Button
+                        asChild
+                        variant="ghost"
+                        size="sm"
+                        className="shrink-0 text-xs text-accent hover:bg-accent/10 hover:text-accent"
+                      >
+                        <Link
+                          to={`/app/scans/${scan.id}/artefacts?highlight=${item.detection_id}`}
+                        >
+                          View
+                          <ArrowRight className="ml-1 size-3" />
+                        </Link>
+                      </Button>
                     </li>
-                  ))}
-                </ol>
-              ) : (
-                <p className="py-8 text-center text-sm text-muted-foreground">
-                  No urgency data available
-                </p>
-              )}
-            </CardContent>
-          </Card>
-        </div>
+                  )
+                })}
+              </ol>
+            ) : (
+              <p className="py-8 text-center text-sm text-muted-foreground">
+                No urgency data available
+              </p>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <MetaCard meta={meta} />
