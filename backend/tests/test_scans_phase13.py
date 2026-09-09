@@ -12,10 +12,10 @@ Covers:
 - 404 for unknown scans / foreign detections, 409 while a scan is queued or
   running.
 
-All scans run for real against the demo_repo fixture (17 detections:
-RSA-1024 critical, MD5 x5 + DES critical via classical break, 10
-quantum-safe) through the shared conftest ``client`` / ``db_session_factory``
-fixtures.
+All scans run for real against the demo_repo fixture (13 detections after
+Fix Phase 5's same-line dedup: RSA-1024 critical, MD5 x4 + DES critical via
+classical break, 7 quantum-safe) through the shared conftest ``client`` /
+``db_session_factory`` fixtures.
 """
 
 from __future__ import annotations
@@ -63,7 +63,7 @@ def _created_scan_via_repository(db_session_factory) -> str:
 
 
 def test_artefacts_list_pagination_counts(client):
-    """Pagination slices match: 17 total, 4 pages of 5, last page has 2."""
+    """Pagination slices match: 13 total, 3 pages of 5, last page has 3."""
     scan_id = _scan_demo_repo(client)
 
     page1 = client.get(
@@ -71,23 +71,23 @@ def test_artefacts_list_pagination_counts(client):
     )
     assert page1.status_code == 200
     body = page1.json()
-    assert body["total"] == 17
+    assert body["total"] == 13
     assert body["page"] == 1
     assert body["page_size"] == 5
-    assert body["total_pages"] == 4
+    assert body["total_pages"] == 3
     assert len(body["items"]) == 5
 
-    page4 = client.get(
-        f"/api/scans/{scan_id}/artefacts", params={"page": 4, "page_size": 5}
+    page3 = client.get(
+        f"/api/scans/{scan_id}/artefacts", params={"page": 3, "page_size": 5}
     )
-    assert page4.status_code == 200
-    assert len(page4.json()["items"]) == 2
+    assert page3.status_code == 200
+    assert len(page3.json()["items"]) == 3
 
     # Defaults: page=1, page_size=50 -> everything on one page.
     all_items = client.get(f"/api/scans/{scan_id}/artefacts")
     assert all_items.status_code == 200
     assert all_items.json()["total_pages"] == 1
-    assert len(all_items.json()["items"]) == 17
+    assert len(all_items.json()["items"]) == 13
 
 
 def test_artefacts_list_filters_and_flattened_shape(client):
@@ -99,7 +99,7 @@ def test_artefacts_list_filters_and_flattened_shape(client):
     )
     assert critical.status_code == 200
     crit_body = critical.json()
-    assert crit_body["total"] == 7
+    assert crit_body["total"] == 6
     assert crit_body["total_pages"] == 1
     assert all(
         item["risk_assessment"]["risk_level"] == "critical"
@@ -110,7 +110,7 @@ def test_artefacts_list_filters_and_flattened_shape(client):
         f"/api/scans/{scan_id}/artefacts", params={"risk_level": "quantum-safe"}
     )
     assert quantum_safe.status_code == 200
-    assert quantum_safe.json()["total"] == 10
+    assert quantum_safe.json()["total"] == 7
     assert all(
         item["risk_assessment"]["risk_level"] == "quantum-safe"
         for item in quantum_safe.json()["items"]
@@ -121,7 +121,7 @@ def test_artefacts_list_filters_and_flattened_shape(client):
     )
     assert md5.status_code == 200
     md5_body = md5.json()
-    assert md5_body["total"] == 5
+    assert md5_body["total"] == 4
     assert all(item["algorithm_family"] == "MD5" for item in md5_body["items"])
 
     # Combined filter: all MD5 detections are classically-broken critical.
@@ -130,7 +130,7 @@ def test_artefacts_list_filters_and_flattened_shape(client):
         params={"risk_level": "critical", "algorithm_family": "MD5"},
     )
     assert combined.status_code == 200
-    assert combined.json()["total"] == 5
+    assert combined.json()["total"] == 4
 
     # Per-item shape: detection fields flattened with nested risk/recommendation.
     first = md5_body["items"][0]
@@ -210,7 +210,7 @@ def test_cbom_download_valid_cyclonedx(client):
     assert bom["metadata"]["component"]["name"] == str(DEMO_REPO)
 
     components = bom["components"]
-    assert len(components) == 17
+    assert len(components) == 13
     for component in components:
         assert component["type"] == "cryptographic-asset"
         assert component["bom-ref"]
@@ -235,7 +235,7 @@ def test_cbom_download_valid_cyclonedx(client):
     assert again.status_code == 200
     assert again.json()["bomFormat"] == "CycloneDX"
     assert again.json()["specVersion"] == "1.6"
-    assert len(again.json()["components"]) == 17
+    assert len(again.json()["components"]) == 13
 
 
 # ---------------------------------------------------------------------------
@@ -254,8 +254,8 @@ def test_report_matches_scan_detail_summary(client):
     report = client.get(f"/api/scans/{scan_id}/report")
     assert report.status_code == 200
     assert report.json() == summary_from_detail
-    assert report.json()["total_detections"] == 17
-    assert report.json()["risk_level_counts"]["critical"] == 7
+    assert report.json()["total_detections"] == 13
+    assert report.json()["risk_level_counts"]["critical"] == 6
 
 
 # ---------------------------------------------------------------------------

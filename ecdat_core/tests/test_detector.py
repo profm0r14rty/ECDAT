@@ -149,24 +149,73 @@ class TestPythonMd5:
     def test_md5_detection_classically_broken_not_quantum_vulnerable(self):
         detections = scan_file_content("sample.py", self.SNIPPET, "python")
         line_two = [d for d in detections if d.line_number == 2]
-        # Both the hashlib.md5( call and the generic md5( pattern match.
-        assert line_two
-        for detection in line_two:
-            assert detection.algorithm_family == "MD5"
-            # MD5 is classically broken today (collision weakness), but NOT
-            # quantum-vulnerable — the two flags must not be conflated.
-            assert detection.classically_broken is True
-            assert detection.quantum_vulnerable is False
-            assert detection.line_number == 2
-            assert detection.confidence == 1.0
+        # Both `hashlib.md5(` and the generic `md5(` pattern match line 2, but
+        # they describe ONE usage, so dedup (Fix Phase 5) yields a single
+        # detection keeping the more specific `hashlib.md5(` match.
+        assert len(line_two) == 1
+        detection = line_two[0]
+        assert detection.algorithm_family == "MD5"
+        assert detection.matched_text == "hashlib.md5("
+        # MD5 is classically broken today (collision weakness), but NOT
+        # quantum-vulnerable — the two flags must not be conflated.
+        assert detection.classically_broken is True
+        assert detection.quantum_vulnerable is False
+        assert detection.line_number == 2
+        assert detection.confidence == 1.0
 
 
 # ---------------------------------------------------------------------------
-# Python AES — generic key size matching
+# Same-line collisions dedup to a single Detection (Fix Phase 5)
 # ---------------------------------------------------------------------------
 
 
-class TestPythonAes:
+class TestSameLineDedup:
+    """Multiple pattern strings matching one physical line => one Detection.
+
+    A signature entry can carry several patterns (import-style, call-site, bare
+    keyword) that co-occur on a single line. Since they describe one real-world
+    cryptographic usage, ``scan_file_content`` must collapse them: keep the
+    highest-confidence match, then the most-specific (longest) match on a tie.
+    """
+
+    def test_single_line_two_patterns_produce_one_detection(self):
+        # "AES.new(key, AES.MODE_GCM)" is matched by both `AES\.new\s*\(`
+        # (conf 1.0) and the bare `\bAES\b` (conf 0.6, twice on the line).
+        snippet = (
+            "from Crypto.Cipher import AES\n"
+            "cipher = AES.new(key, AES.MODE_GCM)\n"
+        )
+        detections = scan_file_content("sample.py", snippet, "python")
+        on_line = [d for d in detections if d.line_number == 2]
+        assert len(on_line) == 1
+        keep = on_line[0]
+        assert keep.algorithm_family == "AES"
+        # Highest confidence (the API call) wins over the bare identifier.
+        assert keep.confidence == 1.0
+        assert keep.matched_text == "AES.new("
+
+    def test_tied_confidence_prefers_more_specific_match(self):
+        # `\bAES-\d+\b` and `\bAES\b` both match "AES-256" at the same 0.6
+        # confidence; the longer, more specific "AES-256" survives.
+        # (No `AES.new(` call on the line, so no 1.0-confidence match competes.)
+        snippet = "AES_BLOCK_SIZE = 16  # AES-256\n"
+        detections = scan_file_content("sample.py", snippet, "python")
+        on_line = [d for d in detections if d.line_number == 1]
+        assert len(on_line) == 1
+        assert on_line[0].matched_text == "AES-256"
+        assert on_line[0].key_size_bits == 256
+
+    def test_hashlib_md5_vs_bare_md5_collapse(self):
+        # `hashlib.md5(` and `md5(` both match with confidence 1.0; the
+        # more specific `hashlib.md5(` match is kept.
+        snippet = "digest = hashlib.md5(data).hexdigest()\n"
+        detections = scan_file_content("sample.py", snippet, "python")
+        on_line = [d for d in detections if d.line_number == 1]
+        assert len(on_line) == 1
+        assert on_line[0].matched_text == "hashlib.md5("
+
+
+
     SNIPPET = (
         "from Crypto.Cipher import AES\n"
         "cipher = AES.new(key, AES.MODE_GCM)\n"

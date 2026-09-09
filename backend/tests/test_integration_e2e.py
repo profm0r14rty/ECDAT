@@ -8,10 +8,11 @@ the shared conftest ``db_session_factory`` / ``client`` fixtures):
    fixture, expect ``202`` and capture the scan id.
 2. ``GET /api/scans/{scan_id}`` — poll until ``status=="done"`` (timeout-
    guarded by :func:`conftest.wait_for_scan_done`).
-3. ``GET /api/scans/{scan_id}/artefacts`` — the fixture's corrected Fix-Batch
-   counts (17 total; 7 critical), with the critical filter spanning both
-   ``classically_broken=True`` (MD5/DES — broken today, independent of
-   quantum) and ``classically_broken=False`` (RSA-1024 — Mosca critical).
+3. ``GET /api/scans/{scan_id}/artefacts`` — the fixture's Fix-Batch corrected
+   counts (13 total; 6 critical after Fix Phase 5 dedup), with the critical
+   filter spanning both ``classically_broken=True`` (MD5/DES — broken today,
+   independent of quantum) and ``classically_broken=False`` (RSA-1024 — Mosca
+   critical).
 4. ``GET /api/scans/{scan_id}/cbom`` — a well-formed CycloneDX 1.6 BOM whose
    component count matches the artefact count.
 5. ``PATCH /api/scans/{scan_id}/artefacts/{detection_id}`` — override one
@@ -19,8 +20,9 @@ the shared conftest ``db_session_factory`` / ``client`` fixtures):
    follows Mosca's formula, then re-GET the artefact to confirm the override
    persisted.
 
-The demo_repo fixture resolves to 4 files / 17 detections: RSA-1024 (critical,
-Mosca), MD5 x5 + DES (critical, classically broken), and 10 quantum-safe.
+The demo_repo fixture resolves to 4 files / 13 detections (after Fix Phase 5's
+same-line dedup): RSA-1024 (critical, Mosca), MD5 x4 + DES (critical,
+classically broken), and 7 quantum-safe.
 """
 
 from __future__ import annotations
@@ -30,9 +32,10 @@ import pytest
 from conftest import DEMO_REPO, wait_for_scan_done
 
 # Fix-Batch corrected fixture numbers for a demo_repo scan (see progress.md:
-# Phase 12 row and "CLI Summary (corrected output)").
-_TOTAL_DETECTIONS = 17
-_TOTAL_CRITICAL = 7
+# Phase 12 row and "CLI Summary (corrected output)"); Fix Phase 5 dedup lowered
+# the totals from 17/7 to 13/6.
+_TOTAL_DETECTIONS = 13
+_TOTAL_CRITICAL = 6
 
 
 def test_full_batch2_api_surface_end_to_end(client):

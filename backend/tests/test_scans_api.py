@@ -17,9 +17,10 @@ from conftest import DEMO_REPO, wait_for_scan_done
 def test_create_scan_returns_202_and_done_summary_matches_fixture(client):
     """POST a local_path scan of demo_repo and assert the final summary.
 
-    Expected numbers come from the Fix Batch's corrected detector/risk-engine
-    output for this fixture: 4 files scanned, 17 detections, 7 critical
-    (RSA-1024 + MD5 x5 + DES), 10 quantum-safe, 1 quantum-vulnerable.
+    Expected numbers come from the Fix-Batch corrected detector/risk-engine
+    output for this fixture, after Fix Phase 5's same-line dedup: 4 files
+    scanned, 13 detections, 6 critical (RSA-1024 + MD5 x4 + DES), 7
+    quantum-safe, 1 quantum-vulnerable.
     """
     response = client.post(
         "/api/scans",
@@ -45,22 +46,22 @@ def test_create_scan_returns_202_and_done_summary_matches_fixture(client):
 
     summary = detail["summary"]
     assert summary is not None
-    assert summary["total_detections"] == 17
+    assert summary["total_detections"] == 13
     assert summary["quantum_vulnerable_count"] == 1
     assert summary["quantum_vulnerable_percentage"] == pytest.approx(
-        100.0 / 17, abs=0.01
+        100.0 / 13, abs=0.01
     )
     assert summary["risk_level_counts"] == {
-        "critical": 7,
+        "critical": 6,
         "high": 0,
         "medium": 0,
         "low": 0,
-        "quantum-safe": 10,
+        "quantum-safe": 7,
     }
     assert summary["algorithm_family_counts"] == {
         "RSA": 1,
-        "AES": 6,
-        "MD5": 5,
+        "AES": 3,
+        "MD5": 4,
         "DES": 1,
         "ML-KEM": 4,
     }
@@ -68,14 +69,21 @@ def test_create_scan_returns_202_and_done_summary_matches_fixture(client):
 
     top_5 = summary["top_5_urgency"]
     assert len(top_5) == 5
-    # Top urgency is the five MD5 finds: critical, urgency 5.5, sorted desc.
+    # Top urgency is the four MD5 finds + DES: all critical, urgency 5.5,
+    # sorted desc (stable tie order: the four hasher.py MD5s precede the
+    # cipher.java DES).
     assert all(item["risk_level"] == "critical" for item in top_5)
-    assert all(item["algorithm_family"] == "MD5" for item in top_5)
     assert all(item["urgency_ratio"] == pytest.approx(5.5) for item in top_5)
+    assert [item["algorithm_family"] for item in top_5][:4] == ["MD5"] * 4
+    assert top_5[4]["algorithm_family"] == "DES"
     assert [item["urgency_ratio"] for item in top_5] == sorted(
         (item["urgency_ratio"] for item in top_5), reverse=True
     )
-    assert all(item["file_path"].endswith("demo_repo/utils/hasher.py") for item in top_5)
+    assert all(
+        item["file_path"].endswith("demo_repo/utils/hasher.py")
+        for item in top_5[:4]
+    )
+    assert top_5[4]["file_path"].endswith("demo_repo/legacy/cipher.java")
 
 
 def test_create_scan_rejects_invalid_source_type(client):
