@@ -1,0 +1,9 @@
+# ECDAT web image build context (./frontend) — keep the build lean.
+node_modules
+dist
+*.local
+logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*

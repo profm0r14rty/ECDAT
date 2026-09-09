@@ -31,6 +31,7 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { formatDateTime } from '@/lib/format'
+import { usePageTitle } from '@/lib/pageTitle'
 
 type HealthState = 'checking' | 'ok' | 'unreachable'
 
@@ -198,6 +199,7 @@ function ScanList() {
 }
 
 export default function ScanListPage() {
+  usePageTitle('Scan runs')
   const [health, setHealth] = useState<HealthState>('checking')
 
   useEffect(() => {

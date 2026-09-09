@@ -54,18 +54,19 @@ services:
     command: ["uvicorn", "app.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
     restart: unless-stopped
 
-  # ---------------------------------------------------------------------------
-  # Batch 3 placeholder: React + Vite + TS frontend dashboard.
-  # Uncomment and configure once frontend/ exists.
-  #
-  # web:
-  #   build:
-  #     context: ./frontend
-  #   ports:
-  #     - "5173:5173"
-  #   depends_on:
-  #     - api
-  # ---------------------------------------------------------------------------
+  web:
+    # Batch 3 React + Vite + TS frontend dashboard.
+    # Multi-stage image (node build -> nginx). nginx serves the static bundle
+    # and reverse-proxies /api + /health to the `api` service, so the bundle
+    # keeps its same-origin VITE_API_BASE_URL (no runtime substitution needed).
+    # Host port 5173 is the Vite dev default the AGENTS.md/CORS docs reference.
+    build:
+      context: ./frontend
+    depends_on:
+      - api
+    ports:
+      - "5173:80"
+    restart: unless-stopped
 
 volumes:
   postgres_data:

@@ -28,6 +28,7 @@ import {
   TabsTrigger,
 } from '@/components/ui/tabs'
 import { formatDateTime } from '@/lib/format'
+import { usePageTitle } from '@/lib/pageTitle'
 import { RISK_COLORS, RISK_LABELS } from '@/lib/colors'
 import ArtefactsTab from '@/pages/ArtefactsTab'
 
@@ -57,6 +58,8 @@ export default function ScanDetailPage() {
   const { id } = useParams<{ id: string }>()
   const [scan, setScan] = useState<ScanRunDetail | null>(null)
   const [error, setError] = useState<string | null>(null)
+
+  usePageTitle(scan ? `Scan ${scan.id}` : 'Scan')
 
   // Fetch on mount, then poll every 1.5s while the scan is queued/running.
   // The interval is cleared once the status turns terminal (done/failed) and
@@ -215,6 +218,7 @@ function DoneState({
 }) {
   const summary = scan.summary
   const [artefacts, setArtefacts] = useState<Artefact[]>([])
+  const [loadingArtefacts, setLoadingArtefacts] = useState(true)
 
   // Fetch artefacts once when the scan is done (to compute classically-broken count client-side)
   useEffect(() => {
@@ -227,6 +231,8 @@ function DoneState({
         if (!cancelled) setArtefacts(res.items)
       } catch {
         // Silently ignore artefact fetch errors; the summary still renders
+      } finally {
+        if (!cancelled) setLoadingArtefacts(false)
       }
     }
 
@@ -293,14 +299,15 @@ function DoneState({
                 highlight="destructive"
               />
               <StatCard
-                value={`${summary.quantum_vulnerable_percentage.toFixed(1)}%`}
+                value={summary.quantum_vulnerable_percentage.toFixed(1) + '%'}
                 label="Vulnerable share"
                 highlight="destructive"
               />
               <StatCard
-                value={classicallyBrokenCount}
+                value={loadingArtefacts ? undefined : classicallyBrokenCount}
                 label="Classically broken"
                 highlight="destructive"
+                loading={loadingArtefacts}
               />
             </div>
           )}
@@ -423,21 +430,27 @@ function StatCard({
   value,
   label,
   highlight,
+  loading = false,
 }: {
-  value: number | string
+  value: number | string | undefined
   label: string
   highlight?: 'destructive'
+  loading?: boolean
 }) {
   return (
     <Card>
       <CardContent className="pt-4">
-        <p
-          className={`text-2xl font-bold tracking-tight ${
-            highlight === 'destructive' ? 'text-red-600' : ''
-          }`}
-        >
-          {value}
-        </p>
+        {loading ? (
+          <Skeleton className="h-8 w-16" aria-label={`Loading ${label}`} />
+        ) : (
+          <p
+            className={`text-2xl font-bold tracking-tight ${
+              highlight === 'destructive' ? 'text-red-600' : ''
+            }`}
+          >
+            {value}
+          </p>
+        )}
         <p className="mt-0.5 text-xs text-muted-foreground">{label}</p>
       </CardContent>
     </Card>
