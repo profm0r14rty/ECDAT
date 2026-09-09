@@ -1,6 +1,7 @@
 import { createBrowserRouter, Navigate, RouterProvider } from 'react-router-dom'
 
 import AppShell from '@/components/AppShell'
+import LandingPage from '@/pages/LandingPage'
 import ScanListPage from '@/pages/ScanListPage'
 import { ScanProvider } from '@/lib/scanContext'
 import ScanOverviewPage from '@/pages/scan/ScanOverviewPage'
@@ -10,9 +11,8 @@ import ScanExportsPage from '@/pages/scan/ScanExportsPage'
 
 const router = createBrowserRouter([
   {
-    // Landing page (Phase 25 scope — unchanged for now)
     path: '/',
-    element: <ScanListPage />,
+    element: <LandingPage />,
   },
   {
     // App shell — wraps all dashboard routes
@@ -25,6 +25,10 @@ const router = createBrowserRouter([
     children: [
       {
         index: true,
+        element: <Navigate to="scans" replace />,
+      },
+      {
+        path: 'scans',
         element: <ScanListPage />,
       },
       {

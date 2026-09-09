@@ -152,5 +152,15 @@
   }
   html {
     @apply font-sans;
+    scroll-behavior: smooth;
   }
+}
+
+/* ------------------------------------------------------------------
+ * Phase 25 — Scroll-reveal animation (CSS-only via IntersectionObserver)
+ * .reveal starts hidden; .revealed transitions to visible.
+ * ------------------------------------------------------------------ */
+.reveal.revealed {
+  opacity: 1 !important;
+  transform: translateY(0) !important;
 }

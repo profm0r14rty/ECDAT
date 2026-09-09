@@ -98,8 +98,8 @@ export default function AppShell() {
 
         {/* Primary nav */}
         <nav className="flex flex-col gap-0.5 px-2 py-3">
-          <SidebarLink to="/app" icon={List} label="Scan Runs" />
-          <SidebarLink to="/app" icon={CirclePlus} label="New Scan" />
+          <SidebarLink to="/app/scans" icon={List} label="Scan Runs" />
+          <SidebarLink to="/app/scans" icon={CirclePlus} label="New Scan" />
 
           {/* Scan-contextual nav — only present when a scan is open */}
           {hasScan && (
@@ -185,7 +185,7 @@ function TopBar({ scan }: { scan: import('@/api/client').ScanRunDetail | null })
         size="sm"
         variant="outline"
         className="shrink-0 border-accent/30 text-accent hover:bg-accent/10 hover:text-accent"
-        onClick={() => { navigate('/app') }}
+        onClick={() => { navigate('/app/scans') }}
       >
         <CirclePlus className="mr-1.5 size-3.5" />
         Run new scan
