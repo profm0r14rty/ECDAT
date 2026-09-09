@@ -197,25 +197,12 @@ def get_detections(
     """
     query = session.query(DetectionRow).filter(DetectionRow.scan_id == scan_id)
 
+    # risk_level lives on RiskAssessmentRow (whose detection_id FK is UNIQUE,
+    # so this inner join is 1:1 and count() is unaffected).
     if risk_level is not None:
-        query = query.filter(DetectionRow.classically_broken != True)  # placeholder - we need risk_level from risk_assessments
-
-    # Actually, risk_level is on the risk_assessment, not directly on detection.
-    # We need to join with risk_assessments to filter by risk_level.
-    # But the DetectionRow model doesn't have risk_level. Let's re-think.
-    # For now, we'll filter by classically_broken as a proxy, or we could do a join.
-    # Looking at the API, risk_level comes from RiskAssessmentRow.
-    # Let me do a join-based filter.
-
-    from sqlalchemy import select
-
-    # Build a joined query to allow filtering by risk_level
-    if risk_level is not None:
-        # Join with risk_assessments to filter by risk_level
-        query = (
-            query.join(RiskAssessmentRow, DetectionRow.id == RiskAssessmentRow.detection_id)
-            .filter(RiskAssessmentRow.risk_level == RiskLevel(risk_level))
-        )
+        query = query.join(
+            RiskAssessmentRow, DetectionRow.id == RiskAssessmentRow.detection_id
+        ).filter(RiskAssessmentRow.risk_level == RiskLevel(risk_level))
 
     if algorithm_family is not None:
         query = query.filter(DetectionRow.algorithm_family == algorithm_family)
@@ -269,6 +256,110 @@ def get_detection_with_risk_and_recommendation(
         return None
 
     return detection, risk, rec
+
+
+def detection_row_to_model(row: DetectionRow) -> Detection:
+    """Convert a DetectionRow ORM row into an ecdat_core Detection model.
+
+    Args:
+        row: The persisted detection row.
+
+    Returns:
+        The equivalent :class:`ecdat_core.models.Detection`.
+    """
+    return Detection(
+        id=row.id,
+        file_path=row.file_path,
+        line_number=row.line_number,
+        matched_text=row.matched_text,
+        asset_type=row.asset_type.value,
+        algorithm_family=row.algorithm_family,
+        key_size_bits=row.key_size_bits,
+        quantum_vulnerable=row.quantum_vulnerable,
+        classically_broken=row.classically_broken,
+        confidence=row.confidence,
+        language=row.language,
+        detection_method=row.detection_method,
+    )
+
+
+def get_detection_for_scan(
+    session: Session, scan_id: str, detection_id: str
+) -> DetectionRow | None:
+    """Get a detection row that belongs to a specific scan.
+
+    Args:
+        session: SQLAlchemy session.
+        scan_id: The scan run the detection must belong to.
+        detection_id: The detection row ID.
+
+    Returns:
+        The DetectionRow, or None when no such detection exists for *scan_id*.
+    """
+    return (
+        session.query(DetectionRow)
+        .filter(DetectionRow.id == detection_id, DetectionRow.scan_id == scan_id)
+        .first()
+    )
+
+
+def get_detection_triples(
+    session: Session,
+    scan_id: str,
+    risk_level: str | None = None,
+    algorithm_family: str | None = None,
+    page: int = 1,
+    page_size: int = 50,
+) -> tuple[list[tuple[DetectionRow, RiskAssessmentRow, RecommendationRow]], int]:
+    """Get one page of (detection, risk assessment, recommendation) triples.
+
+    Filters and pagination behave exactly like :func:`get_detections`. A
+    detection whose risk assessment or recommendation row is missing is
+    skipped (mirrors the incomplete-tuple contract of
+    :func:`get_detection_with_risk_and_recommendation`).
+
+    Args:
+        session: SQLAlchemy session.
+        scan_id: Filter to a specific scan.
+        risk_level: Optional filter by risk level string (e.g. "critical").
+        algorithm_family: Optional filter by algorithm family.
+        page: 1-indexed page number.
+        page_size: Number of items per page.
+
+    Returns:
+        Tuple of (list of complete (detection, risk, recommendation) triples
+        in the requested page, total matching detection count).
+    """
+    rows, total = get_detections(
+        session,
+        scan_id,
+        risk_level=risk_level,
+        algorithm_family=algorithm_family,
+        page=page,
+        page_size=page_size,
+    )
+    if not rows:
+        return [], total
+
+    detection_ids = [row.id for row in rows]
+    risks = {
+        risk.detection_id: risk
+        for risk in session.query(RiskAssessmentRow)
+        .filter(RiskAssessmentRow.detection_id.in_(detection_ids))
+        .all()
+    }
+    recs = {
+        rec.detection_id: rec
+        for rec in session.query(RecommendationRow)
+        .filter(RecommendationRow.detection_id.in_(detection_ids))
+        .all()
+    }
+    triples = [
+        (row, risks[row.id], recs[row.id])
+        for row in rows
+        if row.id in risks and row.id in recs
+    ]
+    return triples, total
 
 
 def update_risk_assessment(

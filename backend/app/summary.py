@@ -20,8 +20,42 @@ from backend.app.models_orm import (
     RiskAssessmentRow,
     ScanRun,
 )
+from backend.app.repository import detection_row_to_model
 from ecdat_core.cbom_export import export_summary
 from ecdat_core.models import Detection, Recommendation, RiskAssessment, ScanResult
+
+
+def build_scan_result_from_rows(session: Session, scan_run: ScanRun) -> ScanResult:
+    """Reconstruct an ecdat_core ScanResult from the persisted ORM rows.
+
+    This is the single reconstruction path used by every read endpoint
+    (scan detail summary, ``/report``, ``/cbom``) so the API layer never
+    duplicates aggregation logic and every response reflects the latest
+    persisted state — including per-artefact risk overrides applied via
+    ``PATCH`` after the scan completed.
+
+    Args:
+        session: SQLAlchemy session bound to the database holding the scan's
+            persisted rows.
+        scan_run: The ``ScanRun`` row to reconstruct.
+
+    Returns:
+        An :class:`ecdat_core.models.ScanResult` built entirely from the
+        persisted rows for *scan_run*.
+    """
+    return ScanResult(
+        scan_id=scan_run.id,
+        target=scan_run.target,
+        detections=_detections_for_scan(session, scan_run.id),
+        risk_assessments=_risk_assessments_for_scan(session, scan_run.id),
+        recommendations=_recommendations_for_scan(session, scan_run.id),
+        scanned_at=(
+            scan_run.completed_at.isoformat()
+            if scan_run.completed_at is not None
+            else datetime.now(timezone.utc).isoformat()
+        ),
+        files_scanned=scan_run.files_scanned or 0,
+    )
 
 
 def build_summary_from_rows(session: Session, scan_run: ScanRun) -> dict:
@@ -37,20 +71,7 @@ def build_summary_from_rows(session: Session, scan_run: ScanRun) -> dict:
         quantum-vulnerable statistics, algorithm family counts, top-5 urgency)
         computed entirely from the persisted rows for *scan_run*.
     """
-    result = ScanResult(
-        scan_id=scan_run.id,
-        target=scan_run.target,
-        detections=_detections_for_scan(session, scan_run.id),
-        risk_assessments=_risk_assessments_for_scan(session, scan_run.id),
-        recommendations=_recommendations_for_scan(session, scan_run.id),
-        scanned_at=(
-            scan_run.completed_at.isoformat()
-            if scan_run.completed_at is not None
-            else datetime.now(timezone.utc).isoformat()
-        ),
-        files_scanned=scan_run.files_scanned or 0,
-    )
-    return export_summary(result)
+    return export_summary(build_scan_result_from_rows(session, scan_run))
 
 
 def _detections_for_scan(session: Session, scan_id: str) -> list[Detection]:
@@ -60,23 +81,7 @@ def _detections_for_scan(session: Session, scan_id: str) -> list[Detection]:
         .filter(DetectionRow.scan_id == scan_id)
         .all()
     )
-    return [
-        Detection(
-            id=row.id,
-            file_path=row.file_path,
-            line_number=row.line_number,
-            matched_text=row.matched_text,
-            asset_type=row.asset_type.value,
-            algorithm_family=row.algorithm_family,
-            key_size_bits=row.key_size_bits,
-            quantum_vulnerable=row.quantum_vulnerable,
-            classically_broken=row.classically_broken,
-            confidence=row.confidence,
-            language=row.language,
-            detection_method=row.detection_method,
-        )
-        for row in rows
-    ]
+    return [detection_row_to_model(row) for row in rows]
 
 
 def _risk_assessments_for_scan(session: Session, scan_id: str) -> list[RiskAssessment]:
