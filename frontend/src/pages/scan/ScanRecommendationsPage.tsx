@@ -6,7 +6,7 @@
  * component for the Phase 24 routing restructure. No content changes.
  */
 
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -20,7 +20,7 @@ import {
 } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
-import { api, apiErrorMessage, type Artefact } from '@/api/client'
+import { api, apiErrorMessage, type Artefact, type RiskLevel } from '@/api/client'
 import { useScan } from '@/lib/scanContext'
 import { usePageTitle } from '@/lib/pageTitle'
 import { RISK_COLORS, RISK_LABELS } from '@/lib/colors'
@@ -89,30 +89,40 @@ export default function ScanRecommendationsPage() {
     count: number
     riskCounts: Map<string, number>
     recommendation: Artefact['recommendation']
+    maxSeverity: number // 0=critical, 1=high, 2=medium, 3=low, 4=quantum-safe
   }>()
 
+  const SEVERITY_ORDER: RiskLevel[] = ['critical', 'high', 'medium', 'low', 'quantum-safe']
+
   for (const a of artefacts) {
+    const level = a.risk_assessment.risk_level
+    const severityIndex = SEVERITY_ORDER.indexOf(level)
     const existing = groups.get(a.algorithm_family)
     if (existing) {
       existing.count++
       existing.riskCounts.set(
-        a.risk_assessment.risk_level,
-        (existing.riskCounts.get(a.risk_assessment.risk_level) ?? 0) + 1,
+        level,
+        (existing.riskCounts.get(level) ?? 0) + 1,
       )
+      // Track the most severe risk level in this family
+      if (severityIndex < existing.maxSeverity) {
+        existing.maxSeverity = severityIndex
+      }
     } else {
       const riskCounts = new Map<string, number>()
-      riskCounts.set(a.risk_assessment.risk_level, 1)
+      riskCounts.set(level, 1)
       groups.set(a.algorithm_family, {
         count: 1,
         riskCounts,
         recommendation: a.recommendation,
+        maxSeverity: severityIndex,
       })
     }
   }
 
   if (groups.size === 0) {
     return (
-      <Card>
+      <Card className="bg-surface">
         <CardContent className="pt-6 text-sm text-muted-foreground">
           No detections in this scan — no recommendations to display.
         </CardContent>
@@ -120,9 +130,17 @@ export default function ScanRecommendationsPage() {
     )
   }
 
+  // Sort families by severity (critical-affecting families first), then by count
+  const sortedFamilies = [...groups.entries()].sort((a, b) => {
+    if (a[1].maxSeverity !== b[1].maxSeverity) {
+      return a[1].maxSeverity - b[1].maxSeverity
+    }
+    return b[1].count - a[1].count
+  })
+
   return (
     <div className="flex flex-col gap-4">
-      {[...groups.entries()].map(([family, group]) => {
+      {sortedFamilies.map(([family, group], _index) => {
         const riskParts = [...group.riskCounts.entries()]
           .sort((a, b) => {
             const order = ['critical', 'high', 'medium', 'low', 'quantum-safe']
@@ -145,7 +163,11 @@ export default function ScanRecommendationsPage() {
         }, [])
 
         return (
-          <Card key={family}>
+          <Card
+            key={family}
+            className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5 stagger-enter"
+            style={{ '--stagger-index': Math.min(_index, 8) } as CSSProperties}
+          >
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -154,7 +176,7 @@ export default function ScanRecommendationsPage() {
                     {group.count} artefact{group.count !== 1 ? 's' : ''} affected — {riskProfile}
                   </CardDescription>
                 </div>
-                <Badge variant="outline" className="shrink-0">
+                <Badge variant="outline" className="shrink-0 border-border">
                   {group.count}
                 </Badge>
               </div>
@@ -162,15 +184,15 @@ export default function ScanRecommendationsPage() {
             <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
               <div>
                 <p className="text-xs font-medium text-muted-foreground">Recommended replacement</p>
-                <p className="font-medium">{group.recommendation.recommended_algorithm}</p>
+                <p className="font-medium text-foreground">{group.recommendation.recommended_algorithm}</p>
               </div>
               <div>
                 <p className="text-xs font-medium text-muted-foreground">FIPS reference</p>
-                <p className="font-medium">{group.recommendation.fips_reference}</p>
+                <p className="font-medium text-foreground">{group.recommendation.fips_reference}</p>
               </div>
               <div className="sm:col-span-2">
                 <p className="text-xs font-medium text-muted-foreground">Rationale</p>
-                <p>{group.recommendation.rationale}</p>
+                <p className="text-foreground/80">{group.recommendation.rationale}</p>
               </div>
             </CardContent>
           </Card>

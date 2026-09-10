@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react'
-import { FlaskConical, KeyRound, Loader2 } from 'lucide-react'
+import { FlaskConical, KeyRound, Loader2, X } from 'lucide-react'
 
 import {
   api,
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
+
 import { truncatePath } from '@/lib/paths'
 import {
   ClassicallyBrokenBadge,
@@ -126,24 +127,34 @@ export default function ArtefactDetailDialog({
     })
   }
 
-  return (
+return (
     <Dialog open onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-h-[85vh] max-w-xl overflow-y-auto">
+      <DialogContent className="max-h-[85vh] max-w-xl overflow-y-auto bg-surface border-border">
         <DialogHeader>
           <div className="flex items-center justify-between gap-2 pr-6">
-            <DialogTitle className="flex items-center gap-2 font-mono text-base">
+            <DialogTitle className="flex items-center gap-2 font-mono text-base text-foreground">
               {artefact.algorithm_family}
               {artefact.key_size_bits !== null && (
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs bg-muted text-muted-foreground">
                   {artefact.key_size_bits}-bit
                 </Badge>
               )}
             </DialogTitle>
-            <RiskLevelBadge level={ra.risk_level} />
+            <div className="flex items-center gap-2">
+              <RiskLevelBadge level={ra.risk_level} />
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={onClose}
+                className="text-muted-foreground hover:text-foreground hover:bg-accent/10"
+              >
+                <X className="size-4" />
+              </Button>
+            </div>
           </div>
-          <DialogDescription className="flex items-center gap-2">
+          <DialogDescription className="flex items-center gap-2 mt-2">
             <span
-              className="truncate font-mono"
+              className="truncate font-mono text-sm text-foreground/80"
               title={artefact.file_path}
             >
               {truncatePath(artefact.file_path, 72)}
@@ -184,7 +195,7 @@ export default function ArtefactDetailDialog({
             <p className="mb-1 text-xs font-medium text-muted-foreground">
               Matched text
             </p>
-            <pre className="overflow-x-auto rounded-md border bg-muted/50 px-3 py-2 font-mono text-xs whitespace-pre-wrap break-all">
+            <pre className="overflow-x-auto rounded-md border border-border bg-bg/50 px-3 py-2 font-mono text-xs whitespace-pre-wrap break-all text-foreground">
               {artefact.matched_text}
             </pre>
           </div>
@@ -201,9 +212,9 @@ export default function ArtefactDetailDialog({
           </div>
 
           {/* Mosca's inequality assessment */}
-          <div className="rounded-md border p-3">
+          <div className="rounded-md border border-border bg-bg/30 p-3">
             <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <FlaskConical className="size-3.5" />
+              <FlaskConical className="size-3.5 text-accent" />
               Mosca's inequality — urgency = (X + Y) / Z
             </p>
             <MoscaTimeline
@@ -211,7 +222,7 @@ export default function ArtefactDetailDialog({
               classicallyBroken={artefact.classically_broken}
               quantumVulnerable={artefact.quantum_vulnerable}
             />
-            <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 border-t pt-3 text-sm">
+            <div className="mt-3 flex flex-wrap items-center gap-x-6 gap-y-1 border-t border-border pt-3 text-sm">
               <MetaItem label="Shelf life (Y)" value={`${formatNumber(ra.shelf_life_years)} yr`} />
               <MetaItem label="Migration (X)" value={`${formatNumber(ra.migration_time_years)} yr`} />
               <MetaItem label="Threat horizon (Z)" value={
@@ -231,16 +242,16 @@ export default function ArtefactDetailDialog({
           </div>
 
           {/* PQC recommendation */}
-          <div className="rounded-md border p-3">
+          <div className="rounded-md border border-border bg-bg/30 p-3">
             <p className="mb-2 flex items-center gap-2 text-xs font-medium text-muted-foreground">
-              <KeyRound className="size-3.5" />
+              <KeyRound className="size-3.5 text-accent" />
               Recommended migration
             </p>
             <div className="flex flex-col gap-1 text-sm">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="font-medium">{rec.recommended_algorithm}</span>
+                <span className="font-medium text-foreground">{rec.recommended_algorithm}</span>
                 {rec.fips_reference !== '' && (
-                  <Badge variant="outline" className="font-mono text-xs">
+                  <Badge variant="outline" className="font-mono text-xs border-border">
                     {rec.fips_reference}
                   </Badge>
                 )}
@@ -264,15 +275,15 @@ export default function ArtefactDetailDialog({
           {/* Risk-engine override form */}
           <form
             onSubmit={handleSubmit}
-            className="flex flex-col gap-3 rounded-md border p-3"
+            className="flex flex-col gap-3 rounded-md border border-border bg-bg/30 p-3"
           >
             <p className="text-xs font-medium text-muted-foreground">
               Override risk parameters — leave a field blank to fall back to
-              the scanner's heuristic default; “Reset” clears both.
+              the scanner's heuristic default; "Reset" clears both.
             </p>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="shelf-life">Shelf life (years, Y)</Label>
+                <Label htmlFor="shelf-life" className="text-xs">Shelf life (years, Y)</Label>
                 <Input
                   id="shelf-life"
                   type="number"
@@ -281,10 +292,11 @@ export default function ArtefactDetailDialog({
                   value={shelfLife}
                   onChange={(event) => setShelfLife(event.target.value)}
                   placeholder="heuristic"
+                  className="border-border bg-background"
                 />
               </div>
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="migration-time">Migration time (years, X)</Label>
+                <Label htmlFor="migration-time" className="text-xs">Migration time (years, X)</Label>
                 <Input
                   id="migration-time"
                   type="number"
@@ -293,11 +305,12 @@ export default function ArtefactDetailDialog({
                   value={migrationTime}
                   onChange={(event) => setMigrationTime(event.target.value)}
                   placeholder="heuristic"
+                  className="border-border bg-background"
                 />
               </div>
             </div>
             <div className="flex items-center gap-2">
-              <Button type="submit" disabled={submitting} size="sm">
+              <Button type="submit" disabled={submitting} size="sm" className="bg-accent text-accent-foreground hover:bg-accent-soft">
                 {submitting ? (
                   <Loader2 className="size-4 animate-spin" />
                 ) : (
@@ -310,14 +323,15 @@ export default function ArtefactDetailDialog({
                 size="sm"
                 disabled={submitting}
                 onClick={handleReset}
+                className="border-border hover:bg-accent/5 hover:text-accent"
               >
                 Reset to defaults
               </Button>
               {savedMessage !== null && (
-                <span className="text-xs text-emerald-600">{savedMessage}</span>
+                <span className="text-xs text-emerald-600 dark:text-emerald-400">{savedMessage}</span>
               )}
               {error !== null && (
-                <span className="text-xs text-red-600">{error}</span>
+                <span className="text-xs text-red-600 dark:text-red-400">{error}</span>
               )}
             </div>
           </form>

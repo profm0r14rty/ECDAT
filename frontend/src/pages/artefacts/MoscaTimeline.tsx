@@ -112,7 +112,7 @@ export default function MoscaTimeline({
           style={{ left: `${xPct}%`, width: `${yPct}%` }}
         />
         {/* Bar border */}
-        <div className="pointer-events-none absolute inset-0 rounded-md border" />
+        <div className="pointer-events-none absolute inset-0 rounded-md border border-border" />
         {/* Z threshold line */}
         {z > 0 && (
           <div

@@ -164,3 +164,32 @@
   opacity: 1 !important;
   transform: translateY(0) !important;
 }
+
+/* ------------------------------------------------------------------
+ * Phase 27 — Subtle stagger entrance for data-dense pages
+ * Applied to table rows and cards on Artefacts/Recommendations/Exports.
+ * --stagger-index capped at 8 so full pages don't feel slow.
+ * Animation is genuinely subtle: 80ms delay per index, 200ms duration.
+ * ------------------------------------------------------------------ */
+.stagger-enter {
+  opacity: 0;
+  transform: translateY(4px);
+  animation: stagger-enter 200ms ease-out forwards;
+  animation-delay: calc(var(--stagger-index, 0) * 80ms);
+}
+
+@keyframes stagger-enter {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reduced motion respect */
+@media (prefers-reduced-motion: reduce) {
+  .stagger-enter {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}

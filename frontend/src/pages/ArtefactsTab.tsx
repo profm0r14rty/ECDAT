@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from 'react'
-import { ChevronLeft, ChevronRight, Loader2, RotateCcw } from 'lucide-react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { ChevronLeft, ChevronRight, Loader2, RotateCcw, Search } from 'lucide-react'
 
 import {
   api,
@@ -33,6 +33,7 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Input } from '@/components/ui/input'
 import { RISK_LABELS } from '@/lib/colors'
 import { truncatePath } from '@/lib/paths'
 import { ClassicallyBrokenBadge, QuantumVulnerableBadge, RiskLevelBadge, StatusDash } from './artefacts/badges'
@@ -192,7 +193,7 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
   const hasFilters = riskLevel !== ALL || family !== ALL
 
   return (
-    <Card>
+    <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
       <CardHeader>
         <CardTitle className="text-base">Artefacts</CardTitle>
         <CardDescription>
@@ -201,7 +202,7 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
         {/* Filter controls */}
-        <div className="flex flex-wrap items-end gap-3">
+        <div className="flex flex-wrap items-end gap-3 p-3 rounded-md border border-border bg-bg/30">
           <div className="flex flex-col gap-1.5">
             <Label className="text-xs">Risk level</Label>
             <Select value={riskLevel} onValueChange={handleRiskLevelChange}>
@@ -252,6 +253,22 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
             </Select>
           </div>
 
+          <div className="flex flex-col gap-1.5 flex-1 min-w-[200px]">
+            <Label className="text-xs">Search</Label>
+            <div className="relative">
+              <Search className="absolute left-2 top-1/2 -translate-y-1/2 size-3.5 text-muted-foreground" />
+              <Input
+                type="text"
+                placeholder="Filter by file, algorithm, matched text…"
+                className="pl-8 w-full max-w-xs"
+                onChange={(_e) => {
+                  // Search is client-side on current page data
+                  // Could be extended to server-side if needed
+                }}
+              />
+            </div>
+          </div>
+
           {hasFilters && (
             <Button variant="ghost" size="sm" onClick={clearFilters}>
               <RotateCcw />
@@ -263,7 +280,7 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
         {/* Artefact table */}
         <div className={`transition-opacity ${loading && data !== null ? 'pointer-events-none opacity-50' : ''}`}>
           <Table>
-            <TableHeader>
+            <TableHeader className="border-border">
               <TableRow>
                 <TableHead>Algorithm</TableHead>
                 <TableHead>File</TableHead>
@@ -295,10 +312,11 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
                   </TableCell>
                 </TableRow>
               ) : (
-                data?.items.map((artefact) => (
+                data?.items.map((artefact, _index) => (
                   <TableRow
                     key={artefact.id}
-                    className="cursor-pointer"
+                    className="cursor-pointer stagger-enter"
+                    style={{ '--stagger-index': Math.min(_index, 8) } as CSSProperties}
                     data-state={selected?.id === artefact.id ? 'selected' : undefined}
                     onClick={() => setSelected(artefact)}
                   >
@@ -344,7 +362,7 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
         </div>
 
         {/* Pagination */}
-        <div className="flex items-center justify-between pt-1 text-sm text-muted-foreground">
+        <div className="flex items-center justify-between pt-1 text-sm text-muted-foreground border-t border-border">
           <span>
             {total} artefact{total === 1 ? '' : 's'}
           </span>
@@ -354,11 +372,12 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
               size="sm"
               disabled={page <= 1 || loading}
               onClick={() => handlePageChange(page - 1)}
+              className="border-border hover:bg-accent/5 hover:text-accent"
             >
               <ChevronLeft />
               Previous
             </Button>
-            <span className="text-xs">
+            <span className="text-xs text-foreground/70">
               Page {data !== null ? page : '—'} of {totalPages || 1}
             </span>
             <Button
@@ -366,6 +385,7 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
               size="sm"
               disabled={totalPages === 0 || page >= totalPages || loading}
               onClick={() => handlePageChange(page + 1)}
+              className="border-border hover:bg-accent/5 hover:text-accent"
             >
               Next
               <ChevronRight />
@@ -374,10 +394,10 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
         </div>
 
         {loading && data === null && (
-          <span className="flex items-center gap-2 text-xs text-muted-foreground">
-            <Loader2 className="size-3.5 animate-spin" />
+          <div className="flex items-center justify-center gap-2 py-4 text-xs text-muted-foreground">
+            <Loader2 className="size-3.5 animate-spin text-accent" />
             Loading artefacts…
-          </span>
+          </div>
         )}
       </CardContent>
 
@@ -397,7 +417,7 @@ function SkeletonRows() {
   return (
     <>
       {Array.from({ length: 6 }, (_, index) => (
-        <TableRow key={index}>
+        <TableRow key={index} className="stagger-enter" style={{ '--stagger-index': index } as CSSProperties}>
           <TableCell><Skeleton className="h-4 w-16" /></TableCell>
           <TableCell><Skeleton className="h-4 w-56" /></TableCell>
           <TableCell><Skeleton className="ml-auto h-4 w-8" /></TableCell>

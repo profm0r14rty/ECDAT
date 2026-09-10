@@ -7,7 +7,7 @@
 
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { Download } from 'lucide-react'
+import { FileJson, FileText } from 'lucide-react'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import {
@@ -63,7 +63,7 @@ export default function ScanExportsPage() {
           <AlertTitle>Could not load scan</AlertTitle>
           <AlertDescription>{error}</AlertDescription>
         </Alert>
-        <Button asChild variant="outline" className="mt-4 w-fit">
+        <Button asChild variant="outline" className="mt-4 w-fit border-border hover:bg-accent/5 hover:text-accent">
           <Link to="/app">Back to scans</Link>
         </Button>
       </>
@@ -71,7 +71,7 @@ export default function ScanExportsPage() {
   }
 
   return (
-    <Card>
+    <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
       <CardHeader>
         <CardTitle className="text-base">Download exports</CardTitle>
         <CardDescription>
@@ -84,21 +84,23 @@ export default function ScanExportsPage() {
             <AlertDescription>{dlError}</AlertDescription>
           </Alert>
         )}
-        <div className="flex gap-4">
+        <div className="flex flex-wrap gap-4">
           <Button
             variant="outline"
             disabled={downloading !== null}
             onClick={() => { void handleDownload('cbom') }}
+            className="border-border hover:bg-accent/10 hover:text-accent"
           >
-            <Download className="mr-2 size-4" />
+            <FileJson className="mr-2 size-4" />
             {downloading === 'cbom' ? 'Downloading…' : 'Download CBOM (CycloneDX 1.6 JSON)'}
           </Button>
           <Button
             variant="outline"
             disabled={downloading !== null}
             onClick={() => { void handleDownload('report') }}
+            className="border-border hover:bg-accent/10 hover:text-accent"
           >
-            <Download className="mr-2 size-4" />
+            <FileText className="mr-2 size-4" />
             {downloading === 'report' ? 'Downloading…' : 'Download Report'}
           </Button>
         </div>

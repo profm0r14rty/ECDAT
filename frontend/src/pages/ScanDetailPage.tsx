@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { Download, Loader2 } from 'lucide-react'
 import { PieChart, Pie, Cell, Tooltip, Legend } from 'recharts'
@@ -30,6 +30,7 @@ import {
 import { formatDateTime } from '@/lib/format'
 import { usePageTitle } from '@/lib/pageTitle'
 import { RISK_COLORS, RISK_LABELS } from '@/lib/colors'
+import { truncatePath } from '@/lib/paths'
 import ArtefactsTab from '@/pages/ArtefactsTab'
 
 /** Poll interval while a scan is queued or running (milliseconds). */
@@ -243,6 +244,12 @@ function DoneState({
   // Compute classically-broken count client-side from the artefacts
   const classicallyBrokenCount = artefacts.filter((a) => a.classically_broken).length
 
+  // Map detection_id to artefact for quick lookup
+  const artefactMap = useMemo(
+    () => new Map(artefacts.map((a) => [a.id, a])),
+    [artefacts],
+  )
+
   // Build chart data: only include levels with count > 0 to avoid empty slices
   const chartData = summary
     ? (Object.entries(summary.risk_level_counts) as Array<[string, number]>)
@@ -262,7 +269,7 @@ function DoneState({
 
   return (
     <>
-      <Card>
+      <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
         <CardHeader>
           <CardTitle>Scan complete</CardTitle>
           <CardDescription>
@@ -315,7 +322,7 @@ function DoneState({
           {/* Risk distribution chart + Top-5 urgency side-by-side on larger screens */}
           <div className="grid gap-6 md:grid-cols-2">
             {/* Risk distribution pie chart */}
-            <Card>
+            <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
               <CardHeader>
                 <CardTitle className="text-base">Risk distribution</CardTitle>
               </CardHeader>
@@ -352,7 +359,7 @@ function DoneState({
             </Card>
 
             {/* Top-5 highest-urgency artefacts */}
-            <Card>
+            <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
               <CardHeader>
                 <CardTitle className="text-base">Top-5 highest urgency</CardTitle>
                 <CardDescription>
@@ -360,42 +367,62 @@ function DoneState({
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                {summary?.top_5_urgency && summary.top_5_urgency.length > 0 ? (
+{summary?.top_5_urgency && summary.top_5_urgency.length > 0 ? (
                   <ol className="flex flex-col gap-2">
-                    {summary.top_5_urgency.map((item, idx) => (
-                      <li
-                        key={item.detection_id}
-                        className="flex items-start gap-3 rounded-md border px-3 py-2 text-sm"
-                      >
-                        <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-muted text-xs font-semibold">
-                          {idx + 1}
-                        </span>
-                        <div className="flex flex-col gap-0.5">
-                          <div className="flex items-center gap-2">
-                            <Badge
-                              variant="outline"
-                              className="text-xs"
-                              style={{
-                                color: RISK_COLORS[item.risk_level] ?? undefined,
-                                borderColor:
-                                  RISK_COLORS[item.risk_level] ?? undefined,
-                              }}
-                            >
-                              {item.risk_level}
-                            </Badge>
-                            <span className="font-medium">
-                              {item.algorithm_family}
-                            </span>
-                            <span className="ml-auto font-mono text-xs text-muted-foreground">
-                              urgency {item.urgency_ratio.toFixed(1)}
-                            </span>
-                          </div>
-                          <span className="truncate text-xs text-muted-foreground">
-                            {item.file_path}
+                    {summary.top_5_urgency.map((item, idx) => {
+                      const artefact = artefactMap.get(item.detection_id)
+                      const recommended =
+                        artefact?.recommendation?.recommended_algorithm
+                      return (
+                        <li
+                          key={item.detection_id}
+                          className="flex items-start gap-3 rounded-md border border-border bg-bg/40 px-3 py-2.5 text-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-accent/5 stagger-enter"
+                          style={{ '--stagger-index': Math.min(idx, 8) } as CSSProperties}
+                        >
+                          <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold text-accent">
+                            {idx + 1}
                           </span>
-                        </div>
-                      </li>
-                    ))}
+                          <div className="flex flex-1 flex-col gap-2">
+                            <div className="flex items-center gap-2">
+                              <Badge
+                                variant="outline"
+                                className="text-xs"
+                                style={{
+                                  color: RISK_COLORS[item.risk_level] ?? undefined,
+                                  borderColor:
+                                    RISK_COLORS[item.risk_level] ?? undefined,
+                                }}
+                              >
+                                {item.risk_level}
+                              </Badge>
+                              <span className="font-medium">
+                                {recommended
+                                  ? `Replace ${item.algorithm_family}`
+                                  : item.algorithm_family}
+                                </span>
+                            </div>
+                            <p className="text-xs text-muted-foreground">
+                              {recommended ? (
+                                <>
+                                  in{' '}
+                                  <span className="font-mono text-foreground/70">
+                                    {truncatePath(item.file_path, 60)}
+                                  </span>{' '}
+                                  with{' '}
+                                  <span className="font-medium text-accent-soft">
+                                    {recommended}
+                                  </span>
+                                </>
+                              ) : (
+                                <span className="font-mono text-foreground/70">
+                                  {truncatePath(item.file_path, 60)}
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </li>
+                      )
+                    })}
                   </ol>
                 ) : (
                   <p className="py-8 text-center text-sm text-muted-foreground">
@@ -434,18 +461,21 @@ function StatCard({
 }: {
   value: number | string | undefined
   label: string
-  highlight?: 'destructive'
+  highlight?: 'accent' | 'destructive'
   loading?: boolean
 }) {
+  const isAccent = highlight === 'accent'
+  const isDestructive = highlight === 'destructive'
+
   return (
-    <Card>
+    <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
       <CardContent className="pt-4">
         {loading ? (
           <Skeleton className="h-8 w-16" aria-label={`Loading ${label}`} />
         ) : (
           <p
             className={`text-2xl font-bold tracking-tight ${
-              highlight === 'destructive' ? 'text-red-600' : ''
+              isAccent ? 'text-accent' : isDestructive ? 'text-red-600' : ''
             }`}
           >
             {value}
@@ -460,7 +490,7 @@ function StatCard({
 /** Scan-run metadata row (source, created, completed, files scanned). */
 function MetaCard({ meta }: { meta: Array<[string, string]> }) {
   return (
-    <Card>
+    <Card className="bg-surface">
       <CardContent className="flex flex-wrap items-center gap-x-8 gap-y-2 pt-6 text-sm">
         {meta.map(([label, value]) => (
           <span key={label}>
@@ -526,7 +556,7 @@ function RecommendationsTab({ scanId }: { scanId: string }) {
 
   if (groups.size === 0) {
     return (
-      <Card>
+      <Card className="bg-surface">
         <CardContent className="pt-6 text-sm text-muted-foreground">
           No detections in this scan — no recommendations to display.
         </CardContent>
@@ -559,7 +589,7 @@ function RecommendationsTab({ scanId }: { scanId: string }) {
         }, [])
 
         return (
-          <Card key={family}>
+          <Card key={family} className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
             <CardHeader className="pb-2">
               <div className="flex items-start justify-between gap-4">
                 <div>
@@ -568,7 +598,7 @@ function RecommendationsTab({ scanId }: { scanId: string }) {
                     {group.count} artefact{group.count !== 1 ? 's' : ''} affected — {riskProfile}
                   </CardDescription>
                 </div>
-                <Badge variant="outline" className="shrink-0">
+                <Badge variant="outline" className="shrink-0 border-border">
                   {group.count}
                 </Badge>
               </div>
