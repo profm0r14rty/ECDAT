@@ -309,7 +309,7 @@ return (
                 />
               </div>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <Button type="submit" disabled={submitting} size="sm" className="bg-accent text-accent-foreground hover:bg-accent-soft">
                 {submitting ? (
                   <Loader2 className="size-4 animate-spin" />

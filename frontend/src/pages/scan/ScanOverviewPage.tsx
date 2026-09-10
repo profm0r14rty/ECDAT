@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2, ArrowRight } from 'lucide-react'
 import {
+  ResponsiveContainer,
   PieChart,
   Pie,
   Cell,
@@ -359,8 +360,8 @@ function DoneState({
             </CardHeader>
             <CardContent>
               {pieData.length > 0 ? (
-                <div className="flex justify-center">
-                  <PieChart width={320} height={260}>
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
                     <Pie
                       data={pieData}
                       dataKey="value"
@@ -380,7 +381,7 @@ function DoneState({
                     <Tooltip />
                     <Legend />
                   </PieChart>
-                </div>
+                </ResponsiveContainer>
               ) : (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   No risk data available
@@ -398,8 +399,8 @@ function DoneState({
             </CardHeader>
             <CardContent>
               {donutData.length > 0 ? (
-                <div className="flex justify-center">
-                  <PieChart width={320} height={260}>
+                <ResponsiveContainer width="100%" height={260}>
+                  <PieChart>
                     <Pie
                       data={donutData}
                       dataKey="value"
@@ -420,7 +421,7 @@ function DoneState({
                     <Tooltip />
                     <Legend />
                   </PieChart>
-                </div>
+                </ResponsiveContainer>
               ) : (
                 <p className="py-8 text-center text-sm text-muted-foreground">
                   No algorithm data available
@@ -442,10 +443,8 @@ function DoneState({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <div className="flex justify-center">
+              <ResponsiveContainer width="100%" height={300}>
                 <BarChart
-                  width={640}
-                  height={300}
                   data={familyRiskData}
                   margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
                 >
@@ -478,7 +477,7 @@ function DoneState({
                     />
                   ))}
                 </BarChart>
-              </div>
+              </ResponsiveContainer>
             </CardContent>
           </Card>
         )}
@@ -509,7 +508,7 @@ function DoneState({
                       <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold text-accent">
                         {idx + 1}
                       </span>
-                      <div className="flex flex-1 flex-col gap-1">
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
                         <div className="flex items-center gap-2">
                           <Badge
                             variant="outline"
@@ -528,7 +527,7 @@ function DoneState({
                               : item.algorithm_family}
                           </span>
                         </div>
-                        <p className="text-xs text-muted-foreground">
+                        <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
                           {recommended ? (
                             <>
                               in{' '}

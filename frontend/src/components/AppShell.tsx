@@ -1,5 +1,6 @@
 import { type ReactNode } from 'react'
 import {
+  Link,
   NavLink,
   Outlet,
   useNavigate,
@@ -46,9 +47,9 @@ function SidebarLink({
 
   if (disabled) {
     return (
-      <span className="flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm text-foreground/30 select-none">
-        <Icon className="size-4" />
-        {label}
+      <span className="flex items-center justify-center gap-2.5 rounded-md px-2 py-1.5 text-sm text-foreground/30 select-none md:justify-start md:px-3">
+        <Icon className="size-4 shrink-0" />
+        <span className="hidden md:inline">{label}</span>
       </span>
     )
   }
@@ -57,14 +58,16 @@ function SidebarLink({
     <NavLink
       to={to}
       onClick={onClick}
-      className={`flex items-center gap-2.5 rounded-md px-3 py-1.5 text-sm transition-colors ${
+      title={label}
+      aria-label={label}
+      className={`flex items-center justify-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors md:justify-start md:px-3 ${
         isActive
           ? 'bg-sidebar-active font-medium text-accent'
           : 'text-foreground/70 hover:bg-sidebar-active/50 hover:text-foreground'
       }`}
     >
-      <Icon className="size-4" />
-      {label}
+      <Icon className="size-4 shrink-0" />
+      <span className="hidden md:inline">{label}</span>
     </NavLink>
   )
 }
@@ -72,7 +75,7 @@ function SidebarLink({
 /** Discrete section heading inside the sidebar. */
 function SidebarSection({ children }: { children: ReactNode }) {
   return (
-    <span className="mt-4 mb-1 block px-3 text-[11px] font-semibold uppercase tracking-wider text-foreground/30">
+    <span className="mt-4 mb-1 hidden px-3 text-[11px] font-semibold uppercase tracking-wider text-foreground/30 md:block">
       {children}
     </span>
   )
@@ -88,13 +91,20 @@ export default function AppShell() {
 
   return (
     <div className="flex h-screen overflow-hidden">
-      {/* ---- Sidebar ---- */}
-      <aside className="flex w-64 shrink-0 flex-col bg-sidebar border-r border-border">
-        {/* Brand */}
-        <div className="flex h-12 items-center gap-2 border-b border-border px-4">
-          <Lock className="size-4 text-accent" />
-          <span className="text-sm font-semibold tracking-tight text-foreground">ECDAT</span>
-        </div>
+      {/* ---- Sidebar ----
+          Below `md` the sidebar collapses to an icon-only rail (labels hidden,
+          icons centered, nav items keep `title`/`aria-label` for accessibility)
+          so the dashboard stays usable on narrow/phone viewports. */}
+      <aside className="flex w-14 shrink-0 flex-col bg-sidebar border-r border-border md:w-64">
+        {/* Brand — clicks through to the landing page */}
+        <Link
+          to="/"
+          title="Back to landing page"
+          className="flex h-12 items-center justify-center gap-2 border-b border-border px-2 transition-colors hover:bg-sidebar-active/50 md:justify-start md:px-4"
+        >
+          <Lock className="size-4 shrink-0 text-accent" />
+          <span className="hidden text-sm font-semibold tracking-tight text-foreground md:block">ECDAT</span>
+        </Link>
 
         {/* Primary nav */}
         <nav className="flex flex-col gap-0.5 px-2 py-3">
@@ -134,7 +144,7 @@ export default function AppShell() {
         </nav>
 
         {/* Footer spacer */}
-        <div className="mt-auto border-t border-border px-4 py-3">
+        <div className="mt-auto hidden border-t border-border px-4 py-3 md:block">
           <p className="text-[11px] text-foreground/30">Crypto Discovery Dashboard</p>
         </div>
       </aside>
@@ -146,7 +156,7 @@ export default function AppShell() {
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
-          <div className="mx-auto max-w-5xl px-6 py-6">
+          <div className="mx-auto max-w-5xl px-4 py-6 md:px-6">
             <Outlet />
           </div>
         </main>
@@ -163,7 +173,7 @@ function TopBar({ scan }: { scan: import('@/api/client').ScanRunDetail | null })
   const navigate = useNavigate()
 
   return (
-    <header className="flex h-12 shrink-0 items-center justify-between border-b border-border bg-surface px-6">
+    <header className="flex h-12 shrink-0 items-center justify-between gap-3 border-b border-border bg-surface px-4 md:px-6">
       {/* Left: current scan info (only when a scan is open) */}
       <div className="flex items-center gap-3 min-w-0">
         {scan !== null ? (

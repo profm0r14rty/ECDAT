@@ -76,7 +76,7 @@ function NewScanForm() {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-          <div className="grid grid-cols-[180px_1fr] items-center gap-4">
+          <div className="grid grid-cols-1 items-center gap-4 sm:grid-cols-[180px_1fr]">
             <Label htmlFor="source-type">Source type</Label>
             <select
               id="source-type"
@@ -211,7 +211,7 @@ export default function ScanListPage() {
 
   return (
     <main className="mx-auto flex max-w-5xl flex-col gap-6 px-6 py-10">
-      <header className="flex items-center justify-between">
+      <header className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">ECDAT</h1>
           <p className="text-sm text-muted-foreground">
