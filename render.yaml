@@ -1,0 +1,58 @@
+# render.yaml — ECDAT deployment Blueprint for Render.com (free tier).
+#
+# Topology: ecdat-api (Docker web service), ecdat-web (frontend static site),
+# ecdat-db (free managed Postgres), ecdat-redis (free managed Key Value).
+#
+# The two `sync: false` env vars are DELIBERATELY left for manual entry after
+# the first Apply. Each side needs the other's URL, which doesn't exist until
+# the first deploy creates the services:
+#   - CORS_ORIGINS (on ecdat-api) must be set to the ecdat-web onrender.com URL
+#     once the static site exists, or the dashboard's browser requests to the
+#     API from a different origin will be blocked by CORS.
+#   - VITE_API_BASE_URL (on ecdat-web) must be set to the ecdat-api onrender.com
+#     URL and triggers a rebuild of the static site, so the built bundle knows
+#     which API origin to call.
+# Order of operations on first apply: create both services (URLs now exist) ->
+# fill in the two env vars in the dashboard -> redeploy the static site.
+services:
+  - type: web
+    name: ecdat-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: .
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ecdat-db
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: keyvalue
+          name: ecdat-redis
+          property: connectionString
+      - key: CORS_ORIGINS
+        sync: false # set manually after the static site's URL is known — see Phase 31
+
+  - type: web
+    name: ecdat-web
+    runtime: static
+    buildCommand: cd frontend && npm ci && npm run build
+    staticPublishPath: ./frontend/dist
+    envVars:
+      - key: VITE_API_BASE_URL
+        sync: false # set manually to the ecdat-api service URL — see Phase 31
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+
+  - type: keyvalue
+    name: ecdat-redis
+    plan: free
+    ipAllowList: [] # internal connections only — only ecdat-api talks to Redis
+
+databases:
+  - name: ecdat-db
+    plan: free

@@ -20,6 +20,12 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
     PYTHONPATH=/app
 
+# git is required for `ecdat_core.ingestion.ingest_git_url` (it shells out to
+# `git clone`); python:3.12-slim does not ship it.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # --- scanner engine (ecdat_core) -------------------------------------------
@@ -44,5 +50,17 @@ RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
 # Default command — compose overrides this with the --reload dev variant.
 # Alembic migrations are applied by the entrypoint before uvicorn starts.
+#
+# JSON form (prevents the JSONArgsRecommended lint) wrapping sh -c: exec form
+# does no variable expansion, so "$@"/sh -c is what expands "${PORT:-8000}" —
+# Render assigns the public port dynamically via $PORT. Locally (Docker
+# Compose) $PORT is unset, so this defaults to 8000, matching the compose
+# `8000:8000` mapping.
+#
+# --app-dir /app/backend is REQUIRED: the Dockerfile WORKDIR is /app (repo
+# root), so `app.main` would not resolve on Render — compose only works today
+# because it sets `working_dir: /app/backend`. --app-dir reproduces that for
+# the default-CMD path (probe-verified: without it, `import app.main` fails
+# with ModuleNotFoundError and the container crash-loops on boot).
 ENTRYPOINT ["docker-entrypoint.sh"]
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --app-dir /app/backend --host 0.0.0.0 --port \"${PORT:-8000}\""]
