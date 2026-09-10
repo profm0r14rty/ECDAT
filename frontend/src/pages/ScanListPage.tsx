@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { FormEvent } from 'react'
 
@@ -33,7 +33,29 @@ import {
 import { formatDateTime } from '@/lib/format'
 import { usePageTitle } from '@/lib/pageTitle'
 
-type HealthState = 'checking' | 'ok' | 'unreachable'
+/**
+ * Three-state health model:
+ * - `'checking'` — initial state before the first probe completes.
+ * - `'waking-up'` — at least one probe has failed, but not enough time has
+ *   passed to distinguish a Render free-tier cold start (~60 s) from a real
+ *   outage.  The badge shows a neutral "Backend waking up…" message so the
+ *   user doesn't panic.
+ * - `'ok'` — the most recent probe succeeded.
+ * - `'unreachable'` — probes have been failing for longer than
+ *   `WAKE_UP_GRACE_MS`, indicating a genuine outage rather than a cold start.
+ */
+type HealthState = 'checking' | 'waking-up' | 'ok' | 'unreachable'
+
+/**
+ * After the first failed health probe, wait this long before switching from
+ * `'waking-up'` to `'unreachable'`.  Render free-tier cold starts take ~60 s;
+ * 90 s gives comfortable headroom without making users wait too long when the
+ * backend is genuinely down.
+ */
+const WAKE_UP_GRACE_MS = 90_000
+
+/** How often to re-probe the backend health endpoint (ms). */
+const HEALTH_POLL_INTERVAL_MS = 30_000
 
 const STATUS_VARIANT: Record<ScanStatus, 'default' | 'secondary' | 'destructive' | 'outline'> = {
   queued: 'secondary',
@@ -116,7 +138,7 @@ function NewScanForm() {
   )
 }
 
-function ScanList() {
+function ScanList({ onBackendReachable }: { onBackendReachable: () => void }) {
   const navigate = useNavigate()
   const [scans, setScans] = useState<ScanRunListItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -124,9 +146,13 @@ function ScanList() {
   const load = useCallback(() => {
     api
       .listScans()
-      .then(setScans)
+      .then((data) => {
+        setScans(data)
+        setError(null)
+        onBackendReachable()
+      })
       .catch((err: unknown) => setError(apiErrorMessage(err)))
-  }, [])
+  }, [onBackendReachable])
 
   useEffect(load, [load])
 
@@ -201,12 +227,49 @@ function ScanList() {
 export default function ScanListPage() {
   usePageTitle('Scan runs')
   const [health, setHealth] = useState<HealthState>('checking')
+  const wakeUpTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  useEffect(() => {
+  const probe = useCallback(() => {
     api
       .getHealth()
-      .then((status) => setHealth(status === 'ok' ? 'ok' : 'unreachable'))
-      .catch(() => setHealth('unreachable'))
+      .then((status) => {
+        if (wakeUpTimerRef.current !== null) {
+          clearTimeout(wakeUpTimerRef.current)
+          wakeUpTimerRef.current = null
+        }
+        setHealth(status === 'ok' ? 'ok' : 'unreachable')
+      })
+      .catch(() => {
+        setHealth((prev) => {
+          if (prev === 'ok' || prev === 'checking') {
+            if (wakeUpTimerRef.current === null) {
+              wakeUpTimerRef.current = setTimeout(() => {
+                wakeUpTimerRef.current = null
+                setHealth('unreachable')
+              }, WAKE_UP_GRACE_MS)
+            }
+            return 'waking-up'
+          }
+          return prev
+        })
+      })
+  }, [])
+
+  useEffect(() => {
+    probe()
+    const interval = setInterval(probe, HEALTH_POLL_INTERVAL_MS)
+    return () => {
+      clearInterval(interval)
+      if (wakeUpTimerRef.current !== null) clearTimeout(wakeUpTimerRef.current)
+    }
+  }, [probe])
+
+  const handleBackendReachable = useCallback(() => {
+    if (wakeUpTimerRef.current !== null) {
+      clearTimeout(wakeUpTimerRef.current)
+      wakeUpTimerRef.current = null
+    }
+    setHealth('ok')
   }, [])
 
   return (
@@ -219,19 +282,27 @@ export default function ScanListPage() {
           </p>
         </div>
         <Badge
-          variant={health === 'ok' ? 'default' : 'destructive'}
+          variant={
+            health === 'ok'
+              ? 'default'
+              : health === 'waking-up'
+                ? 'outline'
+                : 'destructive'
+          }
           aria-label={`Backend health: ${health}`}
         >
           {health === 'checking'
             ? 'Checking backend…'
             : health === 'ok'
               ? 'Backend ok'
-              : 'Backend unreachable'}
+              : health === 'waking-up'
+                ? 'Backend waking up…'
+                : 'Backend unreachable'}
         </Badge>
       </header>
 
       <NewScanForm />
-      <ScanList />
+      <ScanList onBackendReachable={handleBackendReachable} />
     </main>
   )
 }
