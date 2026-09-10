@@ -1,0 +1,229 @@
+{
+  "base": "https://ecdat-web.onrender.com",
+  "showcaseId": "5b4033fd15e24dfbb599ea8ae593b5b2",
+  "results": [
+    {
+      "step": "landing-renders",
+      "ok": true,
+      "detail": "landing page rendered with Open Dashboard CTA"
+    },
+    {
+      "step": "landing-claims",
+      "ok": true,
+      "detail": "threat/deadline claims visible on landing"
+    },
+    {
+      "step": "badge-resolved",
+      "ok": true,
+      "detail": "badge settled to \"Backend ok\""
+    },
+    {
+      "step": "badge-ok",
+      "ok": true,
+      "detail": "badge shows \"Backend ok\" (Phase 35 state machine, actual: \"Backend ok\")"
+    },
+    {
+      "step": "scan-runs-nonempty",
+      "ok": true,
+      "detail": "4 scan row(s) visible"
+    },
+    {
+      "step": "showcase-row",
+      "ok": true,
+      "detail": "showcase row present: done https://github.com/profm0r14rty/ecdat-showcase.git 9/10/2026, 8:59:12 AM 8"
+    },
+    {
+      "step": "showcase-not-newest",
+      "ok": false,
+      "detail": "newest row IS the showcase scan (actual newest: donehttps://github.com/profm0r14rty/chronicle.git9/10/2026, 11:43:46 AM6)"
+    },
+    {
+      "step": "showcase-overview-url",
+      "ok": true,
+      "detail": "URL: https://ecdat-web.onrender.com/app/scans/5b4033fd15e24dfbb599ea8ae593b5b2/overview"
+    },
+    {
+      "step": "overview-stats",
+      "ok": true,
+      "detail": "stat cards: 70 detections / 8 files / 17 quantum vulnerable / 15 classically broken"
+    },
+    {
+      "step": "overview-vuln-pct",
+      "ok": true,
+      "detail": "vulnerable share card: 24.3% Vulnerable share"
+    },
+    {
+      "step": "pie-sectors",
+      "ok": true,
+      "detail": "risk-distribution pie renders 16 sectors (>=4 risk levels, not zero-state)"
+    },
+    {
+      "step": "overview-pie-critical",
+      "ok": true,
+      "detail": "pie label \"Critical: 16\" present"
+    },
+    {
+      "step": "overview-pie-medium",
+      "ok": true,
+      "detail": "pie label \"Medium: 8\" present"
+    },
+    {
+      "step": "overview-pie-low",
+      "ok": true,
+      "detail": "pie label \"Low: 8\" present"
+    },
+    {
+      "step": "overview-pie-quantum-safe",
+      "ok": true,
+      "detail": "pie label \"Quantum-safe: 38\" present"
+    },
+    {
+      "step": "overview-charts-present",
+      "ok": true,
+      "detail": "Algorithm mix + Exposure by algorithm family cards render"
+    },
+    {
+      "step": "overview-top5",
+      "ok": true,
+      "detail": "top-5 priority cards render \"Replace MD5 … with SHA-256 / SHA-3\""
+    },
+    {
+      "step": "artefacts-critical-count",
+      "ok": true,
+      "detail": "Critical filter → \"16 artefacts detected in this scan\""
+    },
+    {
+      "step": "artefacts-critical-rows",
+      "ok": true,
+      "detail": "16 critical rows on page (page size 25, all fit)"
+    },
+    {
+      "step": "md5-dialog",
+      "ok": true,
+      "detail": "MD5 login.py:75 detail drawer opened"
+    },
+    {
+      "step": "md5-classically-broken",
+      "ok": true,
+      "detail": "Classically broken badge shown"
+    },
+    {
+      "step": "md5-not-quantum",
+      "ok": true,
+      "detail": "Not-vulnerable-to-Shor/Grover shown (quantum = No)"
+    },
+    {
+      "step": "md5-urgency",
+      "ok": true,
+      "detail": "Urgency ratio 10.5 shown"
+    },
+    {
+      "step": "md5-mosca-violation",
+      "ok": true,
+      "detail": "Mosca violation badge shown"
+    },
+    {
+      "step": "md5-recommendation",
+      "ok": true,
+      "detail": "MD5 recommendation present: SHA-256 / SHA-3 N/A (classical collision weakness, not quantum-specific) MD5 has broken collision resistance and is unsuitable for any security-sensitive use, independent of quantum computing. Replace with a modern collision-resistant hash such as SHA-256 or SHA-3. Latency: SHA-256 and SHA-3 are computationally comparable to MD5 in most workloads. Migration: Replace all MD5 usage (checksums, HMAC, signatures) with SHA-256 or SHA-3; do not use MD5 even in non-security contexts. Override risk parameters "
+    },
+    {
+      "step": "md5-timeline-classical",
+      "ok": true,
+      "detail": "Mosca timeline shows classically-broken state"
+    },
+    {
+      "step": "rsa-dialog",
+      "ok": true,
+      "detail": "RSA login.py:24 detail drawer opened"
+    },
+    {
+      "step": "rsa-quantum-vulnerable",
+      "ok": true,
+      "detail": "Quantum-vulnerable badge shown"
+    },
+    {
+      "step": "rsa-not-classical",
+      "ok": true,
+      "detail": "Not-classically-broken shown (classical = No)"
+    },
+    {
+      "step": "rsa-urgency",
+      "ok": true,
+      "detail": "Urgency ratio 2.33 shown (actual contains: true)"
+    },
+    {
+      "step": "rsa-recommendation",
+      "ok": true,
+      "detail": "Recommendation ML-KEM (FIPS 203) shown"
+    },
+    {
+      "step": "artefacts-quantumsafe-count",
+      "ok": true,
+      "detail": "Quantum-safe filter → \"38 artefacts detected in this scan\""
+    },
+    {
+      "step": "aes-dialog",
+      "ok": true,
+      "detail": "AES payment.py:4 detail drawer opened"
+    },
+    {
+      "step": "aes-not-quantum",
+      "ok": true,
+      "detail": "Not vulnerable to Shor/Grover shown"
+    },
+    {
+      "step": "aes-not-classical",
+      "ok": true,
+      "detail": "Not classically broken shown"
+    },
+    {
+      "step": "aes-quantum-safe-risk",
+      "ok": true,
+      "detail": "Risk level Quantum-safe shown"
+    },
+    {
+      "step": "aes-256-bit",
+      "ok": true,
+      "detail": "256-bit key size badge shown"
+    },
+    {
+      "step": "aes-recommendation",
+      "ok": true,
+      "detail": "Recommendation AES-256 (no migration needed) shown"
+    },
+    {
+      "step": "recs-render",
+      "ok": true,
+      "detail": "Recommendations grouped by algorithm family render (ML-KEM + MD5 families present)"
+    },
+    {
+      "step": "recs-counts",
+      "ok": true,
+      "detail": "family cards include affected-count + risk-profile lines (e.g. \"10 artefacts affected — 10 Criticals 10 Recommended replacement\")"
+    },
+    {
+      "step": "cbom-download-event",
+      "ok": true,
+      "detail": "browser fired a real download event → saved /home/pratyay/Documents/My Codes/ECDAT/verification/phase37/cbom-showcase.json (suggested filename \"cbom-5b4033fd15e24dfbb599ea8ae593b5b2.json\")"
+    },
+    {
+      "step": "cbom-download-size",
+      "ok": true,
+      "detail": "downloaded file size: 45410 bytes"
+    },
+    {
+      "step": "back-to-landing",
+      "ok": true,
+      "detail": "sidebar brand link returned to landing page (https://ecdat-web.onrender.com/)"
+    },
+    {
+      "step": "no-page-errors",
+      "ok": true,
+      "detail": "zero uncaught page errors"
+    }
+  ],
+  "pageErrors": [],
+  "consoleErrors": [],
+  "failCount": 1
+}

@@ -39,8 +39,20 @@ feature overview. Click **"Open Dashboard"**.
 Open the pre-completed scan directly:
 
 ```
-https://ecdat-web.onrender.com/app/scans/5b4033fd15e24dfbb599ea8ae593b5b2/overview
+https://ecdat-web.onrender.com/app/scans/5dc208ae11644d25bb84eae98b3e8689/overview
 ```
+
+> **Freshness note (Phase 37):** this scan id is re-run fresh before each demo
+> window if the list needs it — the showcase scan was re-cloned on
+> 2026-09-10 with identical results (70 detections, 8 files). If the scan no
+> longer appears at the top of the Scan Runs list during a demo, re-create it
+> from the dashboard's new-scan form:
+>
+> - Source type: **Git URL**
+> - URL: `https://github.com/profm0r14rty/ecdat-showcase.git`
+>
+> The data comes out identical, and the fresh scan id replaces this one in the
+> URL above.
 
 This is a scan of the
 [ecdat-showcase](https://github.com/profm0r14rty/ecdat-showcase) repository —
