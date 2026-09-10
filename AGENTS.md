@@ -74,6 +74,8 @@ CORS: the frontend (static site) and API (web service) will be on different Rend
 
 Cold starts: the free web service sleeps after 15 minutes of inactivity with a roughly one-minute cold-start on the next request. Before any live demo or judging session, hit the deployed API's `/health` endpoint once a few minutes ahead of time to ensure it's warm — don't let the first request a judge triggers be the one that eats the cold-start delay.
 
+Keeping the API warm: during the judging window, you can ensure the API stays responsive by opening the URL yourself a few minutes before you're called. For a set-and-forget option, UptimeRobot's free tier can ping the `/health` endpoint every 5 minutes, which is more than enough to prevent the 15-minute sleep.
+
 ## Deployment Conventions (Oracle Cloud Free Tier — secondary, future)
 Target: a single Oracle Cloud "Always Free" Ampere A1 (ARM/aarch64) compute instance, `VM.Standard.A1.Flex`, Ubuntu 24.04. Design for 2 OCPU / 12 GB RAM as the ceiling — Oracle's Always Free Ampere A1 allowance was cut from 4 OCPU/24GB to 2 OCPU/12GB in mid-2026 and enforcement has been inconsistent across tenancies, so build for the smaller number rather than assuming the larger one is available. 200 GB block storage and 10 TB/month egress are part of Always Free and are not a constraint at this project's scale. No paid resources of any kind are in scope: no OCI Load Balancer, no managed database, no purchased domain — access is via the instance's public IP (optionally a free dynamic-DNS hostname).
 

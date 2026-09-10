@@ -55,3 +55,12 @@ Details:
 
 Tear down with `docker compose down` (add `-v` to also delete the Postgres
 named volume).
+
+## Live Deployment
+
+The project is deployed on Render's free tier.
+
+- **API**: [https://ecdat-api.onrender.com](https://ecdat-api.onrender.com)
+- **Dashboard**: [https://ecdat-web.onrender.com](https://ecdat-web.onrender.com)
+
+**Note on cold starts**: The API sleeps after 15 minutes of inactivity. The first request after sleep will take about a minute to respond while the service warms up. Please hit the `/health` endpoint once before starting the demo to ensure the app is responsive.
