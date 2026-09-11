@@ -193,3 +193,132 @@
     transform: none;
   }
 }
+
+/* ------------------------------------------------------------------
+ * Phase 44 — Filter transition for Artefacts table
+ * Rows fade + slight height transition when entering/leaving due to
+ * risk-level or algorithm-family filter changes.
+ * Reuses --stagger-index from Phase 27 for consistent timing.
+ * ------------------------------------------------------------------ */
+.filter-enter {
+  opacity: 0;
+  transform: translateY(2px);
+  animation: filter-enter 200ms ease-out forwards;
+  animation-delay: calc(var(--stagger-index, 0) * 40ms);
+}
+
+.filter-exit {
+  opacity: 0;
+  transform: translateY(-2px);
+  animation: filter-exit 150ms ease-in forwards;
+}
+
+@keyframes filter-enter {
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes filter-exit {
+  to {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+}
+
+/* ------------------------------------------------------------------
+ * Phase 44 — Table body filter transition
+ * Brief fade transition on the tbody when filter key changes,
+ * complementing the per-row stagger-enter.
+ * ------------------------------------------------------------------ */
+.filter-tbody {
+  animation: filter-tbody-enter 150ms ease-out;
+}
+
+@keyframes filter-tbody-enter {
+  from {
+    opacity: 0.6;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reduced motion respect for table body filter transitions */
+@media (prefers-reduced-motion: reduce) {
+  .filter-tbody {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .filter-enter,
+  .filter-exit {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+ * Phase 44 — Page/route transition
+ * Subtle fade when navigating between sidebar sections (Overview →
+ * Artefacts → Recommendations → Exports). Applied to the main content
+ * wrapper in AppShell. Fast (150ms) and consistent.
+ * ------------------------------------------------------------------ */
+.page-enter {
+  animation: page-enter 150ms ease-out;
+}
+
+@keyframes page-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Reduced motion respect for page transitions */
+@media (prefers-reduced-motion: reduce) {
+  .page-enter {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ------------------------------------------------------------------
+ * Phase 44 — PATCH success micro-feedback
+ * Brief highlight-fade on the risk badge when a risk-override PATCH
+ * succeeds, so the change registers as "something just happened".
+ * ------------------------------------------------------------------ */
+.patch-success-flash {
+  animation: patch-success-flash 600ms ease-out;
+}
+
+@keyframes patch-success-flash {
+  0% {
+    box-shadow: 0 0 0 0 oklch(0.65 0.15 160 / 0.6);
+    background-color: oklch(0.65 0.15 160 / 0.15);
+  }
+  50% {
+    box-shadow: 0 0 0 6px oklch(0.65 0.15 160 / 0);
+    background-color: oklch(0.65 0.15 160 / 0.1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 oklch(0.65 0.15 160 / 0);
+    background-color: transparent;
+  }
+}
+
+/* Reduced motion respect for PATCH success flash */
+@media (prefers-reduced-motion: reduce) {
+  .patch-success-flash {
+    animation: none;
+  }
+}

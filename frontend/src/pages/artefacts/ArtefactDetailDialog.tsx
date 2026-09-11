@@ -71,6 +71,7 @@ export default function ArtefactDetailDialog({
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [savedMessage, setSavedMessage] = useState<string | null>(null)
+  const [patchFlash, setPatchFlash] = useState(false)
 
   if (artefact === null) {
     return <Dialog open={false} onOpenChange={(open) => !open && onClose()} />
@@ -87,12 +88,17 @@ export default function ArtefactDetailDialog({
     setSubmitting(true)
     setError(null)
     setSavedMessage(null)
+    setPatchFlash(false)
     try {
       const updated = await api.patchArtefact(scanId, current.id, overrides)
       onSaved(updated)
       setShelfLife(formatNumber(updated.risk_assessment.shelf_life_years))
       setMigrationTime(formatNumber(updated.risk_assessment.migration_time_years))
       setSavedMessage('Override saved — risk assessment re-run.')
+      // Trigger the highlight-fade animation on the risk badge
+      setPatchFlash(true)
+      // Reset the flash state after animation completes
+      setTimeout(() => setPatchFlash(false), 600)
     } catch (err) {
       setError(apiErrorMessage(err))
     } finally {
@@ -141,7 +147,7 @@ return (
               )}
             </DialogTitle>
             <div className="flex items-center gap-2">
-              <RiskLevelBadge level={ra.risk_level} />
+              <RiskLevelBadge level={ra.risk_level} className={patchFlash ? 'patch-success-flash' : ''} />
               <Button
                 variant="ghost"
                 size="icon"

@@ -616,6 +616,9 @@ function DoneState({
                       paddingAngle={1}
                       label={renderSliceLabel}
                       labelLine={renderSliceLabelLine}
+                      animationDuration={900}
+                      animationEasing="ease-out"
+                      isAnimationActive="auto"
                     >
                       {pieData.map((entry) => (
                         <Cell
@@ -662,6 +665,9 @@ function DoneState({
                       paddingAngle={1}
                       label={renderSliceLabel}
                       labelLine={renderSliceLabelLine}
+                      animationDuration={900}
+                      animationEasing="ease-out"
+                      isAnimationActive="auto"
                     >
                       {donutData.map((_, idx) => (
                         <Cell
@@ -734,6 +740,9 @@ function DoneState({
                         stackId="family"
                         fill={RISK_COLORS[level]}
                         name={RISK_LABELS[level]}
+                        animationDuration={900}
+                        animationEasing="ease-out"
+                        isAnimationActive="auto"
                       />
                     ))}
                   </BarChart>

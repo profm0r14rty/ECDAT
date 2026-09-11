@@ -3,6 +3,7 @@ import {
   Link,
   NavLink,
   Outlet,
+  useLocation,
   useNavigate,
   useResolvedPath,
   useRoutes,
@@ -88,6 +89,7 @@ function SidebarSection({ children }: { children: ReactNode }) {
 export default function AppShell() {
   const { currentScan, scanId } = useScan()
   const hasScan = currentScan !== null || scanId !== null
+  const location = useLocation()
 
   return (
     <div className="flex h-screen overflow-hidden">
@@ -157,7 +159,9 @@ export default function AppShell() {
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
           <div className="mx-auto max-w-5xl px-4 py-6 md:px-6">
-            <Outlet />
+            <div key={location.pathname} className="page-enter">
+              <Outlet />
+            </div>
           </div>
         </main>
       </div>

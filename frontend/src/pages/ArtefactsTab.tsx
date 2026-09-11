@@ -81,6 +81,10 @@ export default function ArtefactsTab({ scanId, families, highlightId }: Artefact
   const highlightApplied = useRef(false)
   const [highlightedId, setHighlightedId] = useState<string | null>(null)
 
+  // Key for TableBody that changes when filters change — forces remount
+  // so CSS transitions on the table body can animate the filter swap.
+  const tableBodyKey = `${riskLevel}|${family}|${page}|${pageSize}`
+
   // Family options are data-driven from this scan's results: prefer the
   // summary's family counts (complete), fall back to families seen on the
   // current page when the summary is unavailable.
@@ -309,7 +313,7 @@ export default function ArtefactsTab({ scanId, families, highlightId }: Artefact
                 <TableHead className="text-right">Confidence</TableHead>
               </TableRow>
             </TableHeader>
-            <TableBody>
+            <TableBody key={tableBodyKey} className="filter-tbody">
               {loading && data === null ? (
                 <SkeletonRows />
               ) : error !== null ? (
