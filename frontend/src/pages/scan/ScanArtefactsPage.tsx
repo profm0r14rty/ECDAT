@@ -51,5 +51,21 @@ export default function ScanArtefactsPage() {
     )
   }
 
+  if (scan.status === 'failed') {
+    return (
+      <>
+        <Alert variant="destructive">
+          <AlertTitle>Scan failed</AlertTitle>
+          <AlertDescription>
+            {scan.error_message ?? 'No error details were provided by the backend.'}
+          </AlertDescription>
+        </Alert>
+        <Button asChild variant="outline" className="mt-4 w-fit">
+          <Link to="/app">Back to scans</Link>
+        </Button>
+      </>
+    )
+  }
+
   return <ArtefactsTab scanId={scanId} families={families} />
 }

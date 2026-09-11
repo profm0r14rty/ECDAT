@@ -178,6 +178,9 @@ function FailedState({
           {scan.error_message ?? 'No error details were provided by the backend.'}
         </AlertDescription>
       </Alert>
+      <Button asChild variant="outline" className="mt-4 w-fit">
+        <Link to="/app">Back to scans</Link>
+      </Button>
       <MetaCard meta={meta} />
     </>
   )

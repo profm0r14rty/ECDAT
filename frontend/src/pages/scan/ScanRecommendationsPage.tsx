@@ -71,6 +71,22 @@ export default function ScanRecommendationsPage() {
     )
   }
 
+  if (scan?.status === 'failed') {
+    return (
+      <>
+        <Alert variant="destructive">
+          <AlertTitle>Scan failed</AlertTitle>
+          <AlertDescription>
+            {scan.error_message ?? 'No error details were provided by the backend.'}
+          </AlertDescription>
+        </Alert>
+        <Button asChild variant="outline" className="mt-4 w-fit">
+          <Link to="/app">Back to scans</Link>
+        </Button>
+      </>
+    )
+  }
+
   if (loading) {
     return (
       <div className="flex flex-col gap-4">

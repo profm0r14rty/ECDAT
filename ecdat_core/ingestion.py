@@ -137,8 +137,15 @@ def ingest_git_url(git_url: str, workdir: str | None = None) -> str:
         ) from exc
 
     if result.returncode != 0:
+        # Extract meaningful error lines from git stderr — strip progress
+        # output like "Cloning into '...'..." that adds noise for end users.
+        stderr_lines = result.stderr.strip().splitlines()
+        error_lines = [line for line in stderr_lines if line.startswith("fatal:")]
+        error_detail = (
+            "; ".join(error_lines) if error_lines else result.stderr.strip()
+        )
         raise RuntimeError(
-            f"git clone failed (exit {result.returncode}): {result.stderr.strip()}"
+            f"Could not clone repository: {error_detail}"
         )
 
     return target_dir

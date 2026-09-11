@@ -75,6 +75,22 @@ export default function ScanExportsPage() {
     )
   }
 
+  if (scan?.status === 'failed') {
+    return (
+      <>
+        <Alert variant="destructive">
+          <AlertTitle>Scan failed</AlertTitle>
+          <AlertDescription>
+            {scan.error_message ?? 'No error details were provided by the backend.'}
+          </AlertDescription>
+        </Alert>
+        <Button asChild variant="outline" className="mt-4 w-fit border-border hover:bg-accent/5 hover:text-accent">
+          <Link to="/app">Back to scans</Link>
+        </Button>
+      </>
+    )
+  }
+
   return (
     <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
       <CardHeader>
