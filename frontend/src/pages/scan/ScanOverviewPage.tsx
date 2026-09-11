@@ -9,7 +9,7 @@
  * all cards.
  */
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { Link } from 'react-router-dom'
 import { Loader2, ArrowRight } from 'lucide-react'
 import {
@@ -24,6 +24,10 @@ import {
   XAxis,
   YAxis,
   CartesianGrid,
+  Curve,
+  type PieLabelRenderProps,
+  type PieProps,
+  type TooltipContentProps,
 } from 'recharts'
 
 import {
@@ -70,6 +74,37 @@ const FAMILY_PALETTE = [
   '#2dd4bf', // teal
   '#e879f9', // fuchsia
 ]
+
+// -------------------------------------------------------------------
+// Slice labels: threshold strategy — inline labels only for slices at
+// or above ~6%; below that, colour + legend + hover tooltip only.
+// -------------------------------------------------------------------
+
+const LABEL_MIN_PERCENT = 0.06
+
+/** Inline label for a slice — `null` (nothing rendered) below the threshold. */
+function renderSliceLabel(props: PieLabelRenderProps): string | null {
+  const { name, value, percent } = props
+  if (percent === undefined || percent < LABEL_MIN_PERCENT) return null
+  return `${name ?? ''}: ${value ?? 0}`
+}
+
+/**
+ * Connector line only for labeled slices: Recharts draws the callout line
+ * for every slice when `labelLine` is truthy, so returning `null` for
+ * sub-threshold slices is what actually removes the orphaned lines.
+ * Cast: Recharts' d.ts types the callback `(props: any) => ReactElement`
+ * but the runtime forwards the function's return — `null` included.
+ */
+const renderSliceLabelLine = ((
+  props: PieLabelRenderProps,
+): ReactElement | null => {
+  if (props.percent === undefined || props.percent < LABEL_MIN_PERCENT) {
+    return null
+  }
+  const { key: _key, ...lineProps } = props
+  return <Curve type="linear" className="recharts-pie-label-line" {...lineProps} />
+}) as unknown as PieProps['labelLine']
 
 // -------------------------------------------------------------------
 // Inline sub-components
@@ -187,6 +222,108 @@ function FailedState({
 }
 
 // -------------------------------------------------------------------
+// Shared chart tooltip (Phase 41) — one styled component for the risk
+// pie, the algorithm donut, and the exposure stacked bar. Slice
+// payloads carry `percent` on their data object; stacked-bar payloads
+// are one entry per risk level with a family `label` header instead.
+// -------------------------------------------------------------------
+
+interface SliceTooltipDatum {
+  name?: string
+  value?: number
+  percent?: number
+}
+
+function ChartTooltip({
+  active,
+  payload,
+  label,
+}: TooltipContentProps) {
+  const ICON_RADIUS = 9
+
+  if (!active || !payload || payload.length === 0) return null
+
+  const firstPayload = payload[0].payload as Partial<SliceTooltipDatum> | null
+  const isSlicePayload =
+    firstPayload !== null && typeof firstPayload === 'object' && 'percent' in firstPayload
+
+  return (
+    <div
+      style={{
+        background: '#0b1a12', // duplicate of --color-surface: Recharts inline styles can't resolve CSS vars
+        border: '1px solid oklch(1 0 0 / 12%)',
+        borderRadius: '0.5rem',
+        padding: '0.5rem 0.625rem',
+        fontSize: 12,
+        lineHeight: 1.5,
+        color: 'oklch(0.85 0.02 160)',
+      }}
+    >
+      {isSlicePayload
+        ? payload.map((entry) => {
+            const datum = entry.payload as SliceTooltipDatum
+            const percent =
+              typeof datum.percent === 'number' ? datum.percent * 100 : undefined
+            return (
+              <div
+                key={entry.name ?? String(entry.dataKey)}
+                style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                  <span
+                    style={{
+                      display: 'inline-block',
+                      width: ICON_RADIUS,
+                      height: ICON_RADIUS,
+                      borderRadius: '9999px',
+                      background: entry.color ?? 'oklch(0.65 0.015 160)',
+                    }}
+                  />
+                  {datum.name ?? entry.name}
+                </span>
+                <span style={{ fontWeight: 600, color: 'oklch(0.95 0.015 160)' }}>
+                  {datum.value ?? 0}
+                  {percent !== undefined ? ` (${percent.toFixed(1)}%)` : ''}
+                </span>
+              </div>
+            )
+          })
+        : (
+            <>
+              <p style={{ fontWeight: 600, margin: '0 0 0.25rem', color: 'oklch(0.95 0.015 160)' }}>
+                {label}
+              </p>
+              {payload
+                .filter((entry) => typeof entry.value === 'number' && entry.value > 0)
+                .map((entry) => (
+                  <div
+                    key={String(entry.dataKey)}
+                    style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}
+                  >
+                    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <span
+                        style={{
+                          display: 'inline-block',
+                          width: ICON_RADIUS,
+                          height: ICON_RADIUS,
+                          borderRadius: '9999px',
+                          background: entry.color ?? 'oklch(0.65 0.015 160)',
+                        }}
+                      />
+                      {entry.name}
+                    </span>
+                    <span style={{ fontWeight: 600, color: 'oklch(0.95 0.015 160)' }}>
+                      {entry.value}
+                    </span>
+                  </div>
+                ))}
+            </>
+          )}
+    </div>
+  )
+}
+
+// -------------------------------------------------------------------
 // Exposure-by-family stacked bar data (computed from artefacts)
 // -------------------------------------------------------------------
 
@@ -300,6 +437,45 @@ function DoneState({
     [artefacts],
   )
 
+  // --- Measured thinning for bar x-axis (Phase 41) ---
+  // Rotate -90° labels at fontSize 10 each occupy ~13px of horizontal axis.
+  // Measure the actual container width and compute how many ticks fit so that
+  // at narrow viewports the labels are thinned (evenly, keeping first+last)
+  // instead of overlapping.
+  const TICK_PX = 14
+  const barContainerRef = useRef<HTMLDivElement>(null)
+  const [barContainerWidth, setBarContainerWidth] = useState(0)
+  const barReady = familyRiskData.length > 0
+  useEffect(() => {
+    if (!barReady) return
+    const el = barContainerRef.current
+    if (!el) return
+    setBarContainerWidth(el.clientWidth || el.getBoundingClientRect().width)
+    const ro = new ResizeObserver((entries) => {
+      const w = entries[0]?.contentRect.width
+      if (w) setBarContainerWidth(w)
+    })
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [barReady])
+  const axisAvailable = Math.max(barContainerWidth - 80, 40) // y-axis ~50 + margins ~30
+  const maxTicks = Math.max(Math.floor(axisAvailable / TICK_PX), 1)
+  const visibleFamilyTicks = useMemo(() => {
+    const allNames = familyRiskData.map((d) => d.family)
+    const n = allNames.length
+    if (n <= maxTicks) return allNames
+    // Spacing in band space: each rotated label needs ~TICK_PX of axis, so
+    // consecutive selected indices must be at least ceil(TICK_PX/bandPx) apart
+    // or the label bboxes overlap even when evenly spaced.
+    const bandPx = Math.max(axisAvailable / n, 1)
+    const minGap = Math.max(Math.ceil(TICK_PX / bandPx), 1)
+    const indices: number[] = []
+    for (let i = 0; i < n; i += minGap) indices.push(i)
+    const last = indices[indices.length - 1]
+    if (last !== n - 1 && n - 1 - last >= minGap) indices.push(n - 1)
+    return indices.map((i) => allNames[i])
+  }, [familyRiskData, maxTicks, axisAvailable])
+
   // --- Lookup artefact by detection_id for actionable top-5 ---
   const artefactMap = useMemo(
     () => new Map(artefacts.map((a) => [a.id, a])),
@@ -364,7 +540,7 @@ function DoneState({
             </CardHeader>
             <CardContent>
               {pieData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={260}>
+                <ResponsiveContainer width="100%" height={320}>
                   <PieChart>
                     <Pie
                       data={pieData}
@@ -373,7 +549,9 @@ function DoneState({
                       cx="50%"
                       cy="50%"
                       outerRadius={90}
-                      label={({ name, value }) => `${name}: ${value}`}
+                      paddingAngle={1}
+                      label={renderSliceLabel}
+                      labelLine={renderSliceLabelLine}
                     >
                       {pieData.map((entry) => (
                         <Cell
@@ -382,8 +560,12 @@ function DoneState({
                         />
                       ))}
                     </Pie>
-                    <Tooltip />
-                    <Legend />
+                    <Tooltip content={ChartTooltip} />
+                    <Legend
+                      iconType="circle"
+                      iconSize={10}
+                      wrapperStyle={{ fontSize: 12, lineHeight: 1.6, paddingTop: 6 }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
@@ -403,7 +585,7 @@ function DoneState({
             </CardHeader>
             <CardContent>
               {donutData.length > 0 ? (
-                <ResponsiveContainer width="100%" height={260}>
+                <ResponsiveContainer width="100%" height={360}>
                   <PieChart>
                     <Pie
                       data={donutData}
@@ -413,7 +595,9 @@ function DoneState({
                       cy="50%"
                       innerRadius={55}
                       outerRadius={90}
-                      label={({ name, value }) => `${name}: ${value}`}
+                      paddingAngle={1}
+                      label={renderSliceLabel}
+                      labelLine={renderSliceLabelLine}
                     >
                       {donutData.map((_, idx) => (
                         <Cell
@@ -422,8 +606,12 @@ function DoneState({
                         />
                       ))}
                     </Pie>
-                    <Tooltip />
-                    <Legend />
+                    <Tooltip content={ChartTooltip} />
+                    <Legend
+                      iconType="circle"
+                      iconSize={10}
+                      wrapperStyle={{ fontSize: 12, lineHeight: 1.6, paddingTop: 6 }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               ) : (
@@ -447,41 +635,46 @@ function DoneState({
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <ResponsiveContainer width="100%" height={300}>
-                <BarChart
-                  data={familyRiskData}
-                  margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
-                >
-                  <CartesianGrid
-                    strokeDasharray="3 3"
-                    stroke="oklch(1 0 0 / 12%)"
-                  />
-                  <XAxis
-                    dataKey="family"
-                    tick={{ fill: 'oklch(0.65 0.015 160)', fontSize: 12 }}
-                  />
-                  <YAxis
-                    allowDecimals={false}
-                    tick={{ fill: 'oklch(0.65 0.015 160)', fontSize: 12 }}
-                  />
-                  <Tooltip
-                    contentStyle={{
-                      background: '#0b1a12',
-                      border: '1px solid oklch(1 0 0 / 12%)',
-                      borderRadius: '0.5rem',
-                    }}
-                  />
-                  {RISK_LEVEL_ORDER.map((level) => (
-                    <Bar
-                      key={level}
-                      dataKey={level}
-                      stackId="family"
-                      fill={RISK_COLORS[level]}
-                      name={RISK_LABELS[level]}
+              <div ref={barContainerRef}>
+                <ResponsiveContainer width="100%" height={320}>
+                  <BarChart
+                    data={familyRiskData}
+                    margin={{ top: 5, right: 20, bottom: 5, left: 0 }}
+                  >
+                    <CartesianGrid
+                      strokeDasharray="3 3"
+                      stroke="oklch(1 0 0 / 12%)"
                     />
-                  ))}
-                </BarChart>
-              </ResponsiveContainer>
+                    <XAxis
+                      dataKey="family"
+                      ticks={visibleFamilyTicks}
+                      interval={0}
+                      angle={-90}
+                      textAnchor="end"
+                      height={110}
+                      tickMargin={6}
+                      tick={{ fill: 'oklch(0.65 0.015 160)', fontSize: 10 }}
+                      tickFormatter={(name: string) =>
+                        name.length > 15 ? `${name.slice(0, 15)}…` : name
+                      }
+                    />
+                    <YAxis
+                      allowDecimals={false}
+                      tick={{ fill: 'oklch(0.65 0.015 160)', fontSize: 12 }}
+                    />
+                    <Tooltip content={ChartTooltip} />
+                    {RISK_LEVEL_ORDER.map((level) => (
+                      <Bar
+                        key={level}
+                        dataKey={level}
+                        stackId="family"
+                        fill={RISK_COLORS[level]}
+                        name={RISK_LABELS[level]}
+                      />
+                    ))}
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             </CardContent>
           </Card>
         )}
