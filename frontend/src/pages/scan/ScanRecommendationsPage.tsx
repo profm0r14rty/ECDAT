@@ -89,7 +89,7 @@ export default function ScanRecommendationsPage() {
 
   if (loading) {
     return (
-      <div className="flex flex-col gap-4">
+      <div className="flex flex-col gap-6">
         <Skeleton className="h-24 w-full" />
         <Skeleton className="h-24 w-full" />
       </div>
@@ -160,7 +160,7 @@ export default function ScanRecommendationsPage() {
   })
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6">
       {sortedFamilies.map(([family, group], _index) => {
         const riskParts = [...group.riskCounts.entries()]
           .sort((a, b) => {
@@ -202,7 +202,7 @@ export default function ScanRecommendationsPage() {
                 </Badge>
               </div>
             </CardHeader>
-            <CardContent className="grid gap-3 text-sm sm:grid-cols-2">
+            <CardContent className="grid gap-4 text-sm sm:grid-cols-2">
               <div>
                 <p className="text-xs font-medium text-muted-foreground">Recommended replacement</p>
                 <p className="font-medium text-foreground">{group.recommendation.recommended_algorithm}</p>
