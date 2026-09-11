@@ -11,7 +11,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactElement } from 'react'
 import { Link } from 'react-router-dom'
-import { Loader2, ArrowRight } from 'lucide-react'
+import { Loader2, ChevronDown } from 'lucide-react'
 import {
   ResponsiveContainer,
   PieChart,
@@ -36,6 +36,7 @@ import {
   type ScanStatus,
   type Artefact,
   type RiskLevel,
+  type TopUrgencyItem,
 } from '@/api/client'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
@@ -369,6 +370,63 @@ function computeFamilyRiskData(artefacts: Artefact[]): FamilyRiskRow[] {
 }
 
 // -------------------------------------------------------------------
+// Priority-action grouping (Phase 42): the raw top-5 urgency list can
+// hold several detections of the same family in the same file. Grouping
+// them collapses those into one card per (family, file) so a judge sees
+// distinct actions, each with its occurrence count and line list, instead
+// of five near-identical sentences.
+// -------------------------------------------------------------------
+
+interface UrgencyOccurrence {
+  detection_id: string
+  line_number: number
+}
+
+interface UrgencyGroup {
+  algorithm_family: string
+  file_path: string
+  risk_level: RiskLevel
+  occurrences: UrgencyOccurrence[]
+}
+
+/** Group urgency items by (algorithm_family, file_path), preserving order. */
+function groupTopUrgency(items: TopUrgencyItem[]): UrgencyGroup[] {
+  const groups: UrgencyGroup[] = []
+  const byKey = new Map<string, UrgencyGroup>()
+
+  for (const item of items) {
+    const key = `${item.algorithm_family}\u0000${item.file_path}`
+    let group = byKey.get(key)
+    if (group === undefined) {
+      group = {
+        algorithm_family: item.algorithm_family,
+        file_path: item.file_path,
+        risk_level: item.risk_level,
+        occurrences: [],
+      }
+      byKey.set(key, group)
+      groups.push(group)
+    }
+    // Keep the most severe risk level observed in the group.
+    if (
+      RISK_LEVEL_ORDER.indexOf(item.risk_level) <
+      RISK_LEVEL_ORDER.indexOf(group.risk_level)
+    ) {
+      group.risk_level = item.risk_level
+    }
+    group.occurrences.push({
+      detection_id: item.detection_id,
+      line_number: item.line_number,
+    })
+  }
+
+  for (const group of groups) {
+    group.occurrences.sort((a, b) => a.line_number - b.line_number)
+  }
+  return groups
+}
+
+// -------------------------------------------------------------------
 // Done state: overview with all charts + actionable top-5
 // -------------------------------------------------------------------
 
@@ -480,6 +538,12 @@ function DoneState({
   const artefactMap = useMemo(
     () => new Map(artefacts.map((a) => [a.id, a])),
     [artefacts],
+  )
+
+  // --- Priority-action cards, grouped per Phase 42 rendering decision ---
+  const urgencyGroups = useMemo(
+    () => (summary ? groupTopUrgency(summary.top_5_urgency) : []),
+    [summary],
   )
 
   return (
@@ -679,27 +743,41 @@ function DoneState({
           </Card>
         )}
 
-        {/* Row 3: Actionable top-5 priority cards */}
+        {/* Row 3: Actionable priority cards, grouped per Phase 42 */}
         <Card className="bg-surface transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-accent/5">
           <CardHeader>
             <CardTitle className="text-base">
               Priority actions
             </CardTitle>
             <CardDescription>
-              Highest-urgency artefacts — act on these first
+              Highest-urgency fixes, grouped by file — act on these first
             </CardDescription>
           </CardHeader>
           <CardContent>
-            {summary?.top_5_urgency &&
-            summary.top_5_urgency.length > 0 ? (
+            {urgencyGroups.length > 0 ? (
               <ol className="flex flex-col gap-2">
-                {summary.top_5_urgency.map((item, idx) => {
-                  const artefact = artefactMap.get(item.detection_id)
+                {urgencyGroups.map((group, idx) => {
+                  const artefact = artefactMap.get(group.occurrences[0].detection_id)
                   const recommended =
                     artefact?.recommendation?.recommended_algorithm
+                  const count = group.occurrences.length
+                  const lineChips = group.occurrences.map((occ) => (
+                    <li key={occ.detection_id}>
+                      <Link
+                        to={`/app/scans/${scan.id}/artefacts?highlight=${occ.detection_id}`}
+                        className="inline-flex items-center rounded border border-border bg-bg/50 px-1.5 py-0.5 font-mono text-[11px] text-foreground/80 transition-colors hover:border-accent/40 hover:text-accent"
+                      >
+                        L{occ.line_number}
+                      </Link>
+                    </li>
+                  ))
+                  const pathText = truncatePath(
+                    group.file_path,
+                    recommended ? 60 : 70,
+                  )
                   return (
                     <li
-                      key={item.detection_id}
+                      key={`${group.algorithm_family}\u0000${group.file_path}`}
                       className="flex items-start gap-3 rounded-md border border-border bg-bg/40 px-3 py-2.5 text-sm transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md hover:shadow-accent/5"
                     >
                       <span className="mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full bg-accent/10 text-xs font-semibold text-accent">
@@ -711,17 +789,17 @@ function DoneState({
                             variant="outline"
                             className="text-xs"
                             style={{
-                              color: RISK_COLORS[item.risk_level] ?? undefined,
+                              color: RISK_COLORS[group.risk_level] ?? undefined,
                               borderColor:
-                                RISK_COLORS[item.risk_level] ?? undefined,
+                                RISK_COLORS[group.risk_level] ?? undefined,
                             }}
                           >
-                            {item.risk_level}
+                            {group.risk_level}
                           </Badge>
                           <span className="font-medium">
                             {recommended
-                              ? `Replace ${item.algorithm_family}`
-                              : item.algorithm_family}
+                              ? `Replace ${group.algorithm_family}`
+                              : group.algorithm_family}
                           </span>
                         </div>
                         <p className="text-xs text-muted-foreground [overflow-wrap:anywhere]">
@@ -729,33 +807,39 @@ function DoneState({
                             <>
                               in{' '}
                               <span className="font-mono text-foreground/70">
-                                {truncatePath(item.file_path, 60)}
+                                {pathText}
+                                {count === 1 ? `:${group.occurrences[0].line_number}` : ''}
                               </span>{' '}
                               with{' '}
                               <span className="font-medium text-accent-soft">
                                 {recommended}
-                              </span>
+                              </span>{' '}
+                              {count > 1 ? `— ${count} occurrences` : '— 1 occurrence'}
                             </>
                           ) : (
-                            <span className="font-mono text-foreground/70">
-                              {truncatePath(item.file_path, 60)}
-                            </span>
+                            <>
+                              <span className="font-mono text-foreground/70">
+                                {pathText}
+                                {count === 1 ? `:${group.occurrences[0].line_number}` : ''}
+                              </span>{' '}
+                              {count > 1 ? `— ${count} occurrences` : '— 1 occurrence'}
+                            </>
                           )}
                         </p>
+                        {count <= 5 ? (
+                          <ul className="flex flex-wrap gap-1">{lineChips}</ul>
+                        ) : (
+                          <details className="group/line-list">
+                            <summary className="flex cursor-pointer select-none items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+                              <ChevronDown className="size-3 transition-transform group-open/line-list:rotate-180" />
+                              Show all {count} lines
+                            </summary>
+                            <ul className="mt-1.5 flex flex-wrap gap-1">
+                              {lineChips}
+                            </ul>
+                          </details>
+                        )}
                       </div>
-                      <Button
-                        asChild
-                        variant="ghost"
-                        size="sm"
-                        className="shrink-0 text-xs text-accent hover:bg-accent/10 hover:text-accent"
-                      >
-                        <Link
-                          to={`/app/scans/${scan.id}/artefacts?highlight=${item.detection_id}`}
-                        >
-                          View
-                          <ArrowRight className="ml-1 size-3" />
-                        </Link>
-                      </Button>
                     </li>
                   )
                 })}

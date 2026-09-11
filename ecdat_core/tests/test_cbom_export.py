@@ -347,6 +347,15 @@ class TestExportSummary:
         top = result["top_5_urgency"]
         assert len(top) == 4  # now 4 detections, less than limit of 5
         assert top[0]["detection_id"] == "det-rsa-1"
+        # Every entry carries its detection's line number — the UI groups
+        # same-family/same-file entries, so the lines must be present.
+        assert all(
+            isinstance(item["line_number"], int) and item["line_number"] > 0
+            for item in top
+        )
+        assert top[0]["line_number"] == 10  # _DET_RSA.line_number
+        assert top[1]["line_number"] == 1  # _DET_MD5.line_number
+        assert top[2]["line_number"] == 25  # _DET_SHA.line_number
 
     def test_top_5_urgency_sorted_descending(self) -> None:
         """Top-5 urgency entries are sorted by urgency_ratio descending."""

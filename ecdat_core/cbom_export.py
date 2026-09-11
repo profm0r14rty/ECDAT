@@ -243,7 +243,7 @@ def _top_urgency(
     """Return the *limit* highest-urgency detections as a list of dicts.
 
     Each dict contains ``detection_id``, ``algorithm_family``, ``risk_level``,
-    ``urgency_ratio``, and ``file_path``.
+    ``urgency_ratio``, ``file_path``, and ``line_number``.
 
     Args:
         detections: All detections to consider.
@@ -265,6 +265,7 @@ def _top_urgency(
                 "risk_level": ra.risk_level,
                 "urgency_ratio": ra.urgency_ratio,
                 "file_path": det.file_path,
+                "line_number": det.line_number,
             }
         )
     paired.sort(key=lambda item: item["urgency_ratio"], reverse=True)

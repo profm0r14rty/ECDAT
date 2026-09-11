@@ -84,6 +84,12 @@ def test_create_scan_returns_202_and_done_summary_matches_fixture(client):
         for item in top_5[:4]
     )
     assert top_5[4]["file_path"].endswith("demo_repo/legacy/cipher.java")
+    # Phase 42: every top-5 entry carries its line number (the UI renders
+    # same-family/same-file detections as one card with a per-line list, so
+    # the summary must distinguish them). Ground truth from the fixture:
+    # hasher.py MD5s at lines 1/9/10/14, cipher.java DES at line 18.
+    assert {item["line_number"] for item in top_5[:4]} == {1, 9, 10, 14}
+    assert top_5[4]["line_number"] == 18
 
 
 def test_create_scan_rejects_invalid_source_type(client):

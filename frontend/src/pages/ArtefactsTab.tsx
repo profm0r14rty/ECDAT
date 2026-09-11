@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type CSSProperties } from 'react'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { ChevronLeft, ChevronRight, Loader2, RotateCcw, Search } from 'lucide-react'
 
 import {
@@ -56,10 +56,9 @@ const ALL = 'all'
 
 /** Props for {@link ArtefactsTab}. */
 interface ArtefactsTabProps {
-  /** The scan whose artefacts are listed. */
   scanId: string
-  /** Algorithm families present in this scan (from `summary.algorithm_family_counts`). */
   families: string[]
+  highlightId?: string | null
 }
 
 /**
@@ -68,7 +67,8 @@ interface ArtefactsTabProps {
  * filters, page/page_size/total_pages pagination), with a row click opening a
  * detail dialog whose risk-override PATCH updates the row in place.
  */
-export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
+export default function ArtefactsTab({ scanId, families, highlightId }: ArtefactsTabProps) {
+  const highlightRef = useRef(highlightId)
   const [riskLevel, setRiskLevel] = useState<string>(ALL)
   const [family, setFamily] = useState<string>(ALL)
   const [page, setPage] = useState(1)
@@ -78,6 +78,8 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [selected, setSelected] = useState<Artefact | null>(null)
+  const highlightApplied = useRef(false)
+  const [highlightedId, setHighlightedId] = useState<string | null>(null)
 
   // Family options are data-driven from this scan's results: prefer the
   // summary's family counts (complete), fall back to families seen on the
@@ -98,11 +100,12 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
 
     async function load(): Promise<void> {
       try {
+        const fetchPageSize = highlightRef.current ? 500 : pageSize
         const res = await api.getArtefacts(scanId, {
           risk_level: riskLevel === ALL ? undefined : riskLevel,
           algorithm_family: family === ALL ? undefined : family,
-          page,
-          page_size: pageSize,
+          page: highlightRef.current ? 1 : page,
+          page_size: fetchPageSize,
         })
         if (cancelled) return
         // An override on the last row of the last page can shrink total_pages
@@ -130,6 +133,21 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
     setLoading(true)
     setError(null)
   }
+
+  useEffect(() => {
+    const hl = highlightRef.current
+    if (!hl || highlightApplied.current || !data) return
+    const target = data.items.find((a) => a.id === hl)
+    if (!target) return
+    highlightApplied.current = true
+    setHighlightedId(hl)
+    requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`[data-artefact-id="${hl}"]`)
+        ?.scrollIntoView({ block: 'center', behavior: 'smooth' })
+    })
+    const timer = setTimeout(() => setHighlightedId(null), 3000)
+    return () => clearTimeout(timer)
+  }, [data])
 
   function handleRiskLevelChange(value: string): void {
     armReload()
@@ -315,7 +333,8 @@ export default function ArtefactsTab({ scanId, families }: ArtefactsTabProps) {
                 data?.items.map((artefact, _index) => (
                   <TableRow
                     key={artefact.id}
-                    className="cursor-pointer stagger-enter"
+                    data-artefact-id={artefact.id}
+                    className={`cursor-pointer stagger-enter${artefact.id === highlightedId ? ' ring-2 ring-accent/70 bg-accent/5' : ''}`}
                     style={{ '--stagger-index': Math.min(_index, 8) } as CSSProperties}
                     data-state={selected?.id === artefact.id ? 'selected' : undefined}
                     onClick={() => setSelected(artefact)}

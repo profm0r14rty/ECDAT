@@ -67,6 +67,7 @@ export interface TopUrgencyItem {
   risk_level: RiskLevel
   urgency_ratio: number
   file_path: string
+  line_number: number
 }
 
 /**
