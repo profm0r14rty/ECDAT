@@ -11,18 +11,22 @@ import { Skeleton } from '@/components/ui/skeleton'
 import { useScan } from '@/lib/scanContext'
 import { usePageTitle } from '@/lib/pageTitle'
 import ArtefactsTab from '@/pages/ArtefactsTab'
+import ColdStartBanner from '@/components/ColdStartBanner'
 
 export default function ScanArtefactsPage() {
-  const { currentScan: scan, scanError: error, scanId } = useScan()
+  const { currentScan: scan, scanError: error, scanId, coldStartPending } = useScan()
   const [families, setFamilies] = useState<string[]>([])
 
   usePageTitle(scan ? `Scan ${scan.id} — Artefacts` : 'Artefacts')
 
-  // Load algorithm families from the scan summary for the filter dropdown.
   useEffect(() => {
     if (scan?.summary === null || scan?.summary === undefined) return
     setFamilies(Object.keys(scan.summary.algorithm_family_counts))
   }, [scan?.summary])
+
+  if (coldStartPending && scan === null) {
+    return <ColdStartBanner />
+  }
 
   if (error !== null && scan === null) {
     return (

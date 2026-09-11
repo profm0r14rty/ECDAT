@@ -24,9 +24,10 @@ import { api, apiErrorMessage, type Artefact, type RiskLevel } from '@/api/clien
 import { useScan } from '@/lib/scanContext'
 import { usePageTitle } from '@/lib/pageTitle'
 import { RISK_COLORS, RISK_LABELS } from '@/lib/colors'
+import ColdStartBanner from '@/components/ColdStartBanner'
 
 export default function ScanRecommendationsPage() {
-  const { currentScan: scan, scanError: error, scanId } = useScan()
+  const { currentScan: scan, scanError: error, scanId, coldStartPending } = useScan()
   const [artefacts, setArtefacts] = useState<Artefact[]>([])
   const [loading, setLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -51,6 +52,10 @@ export default function ScanRecommendationsPage() {
     void load()
     return () => { cancelled = true }
   }, [scanId])
+
+  if (coldStartPending && scan === null) {
+    return <ColdStartBanner />
+  }
 
   if (error !== null && scan === null) {
     return (

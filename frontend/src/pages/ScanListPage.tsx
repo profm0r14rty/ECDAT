@@ -9,6 +9,7 @@ import {
   type ScanRunListItem,
   type ScanStatus,
 } from '@/api/client'
+import ColdStartBanner from '@/components/ColdStartBanner'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -53,6 +54,7 @@ type HealthState = 'checking' | 'waking-up' | 'ok' | 'unreachable'
  * backend is genuinely down.
  */
 const WAKE_UP_GRACE_MS = 90_000
+const COLD_START_DELAY_MS = 3_000
 
 /** How often to re-probe the backend health endpoint (ms). */
 const HEALTH_POLL_INTERVAL_MS = 30_000
@@ -142,6 +144,9 @@ function ScanList({ onBackendReachable }: { onBackendReachable: () => void }) {
   const navigate = useNavigate()
   const [scans, setScans] = useState<ScanRunListItem[] | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [coldStartPending, setColdStartPending] = useState(false)
+  const coldStartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const coldStartGraceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const load = useCallback(() => {
     api
@@ -150,11 +155,44 @@ function ScanList({ onBackendReachable }: { onBackendReachable: () => void }) {
         setScans(data)
         setError(null)
         onBackendReachable()
+        setColdStartPending(false)
+        if (coldStartTimerRef.current !== null) {
+          clearTimeout(coldStartTimerRef.current)
+          coldStartTimerRef.current = null
+        }
+        if (coldStartGraceRef.current !== null) {
+          clearTimeout(coldStartGraceRef.current)
+          coldStartGraceRef.current = null
+        }
       })
       .catch((err: unknown) => setError(apiErrorMessage(err)))
   }, [onBackendReachable])
 
-  useEffect(load, [load])
+  useEffect(() => {
+    coldStartTimerRef.current = setTimeout(() => {
+      setColdStartPending(true)
+    }, COLD_START_DELAY_MS)
+
+    load()
+
+    return () => {
+      if (coldStartTimerRef.current !== null) clearTimeout(coldStartTimerRef.current)
+      if (coldStartGraceRef.current !== null) clearTimeout(coldStartGraceRef.current)
+    }
+  }, [load])
+
+  useEffect(() => {
+    coldStartGraceRef.current = setTimeout(() => {
+      setColdStartPending(false)
+    }, WAKE_UP_GRACE_MS)
+    return () => {
+      if (coldStartGraceRef.current !== null) clearTimeout(coldStartGraceRef.current)
+    }
+  }, [])
+
+  if (coldStartPending && (scans === null || error !== null)) {
+    return <ColdStartBanner />
+  }
 
   if (error !== null) {
     return (

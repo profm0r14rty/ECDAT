@@ -21,6 +21,7 @@ import {
 import { api, apiErrorMessage } from '@/api/client'
 import { useScan } from '@/lib/scanContext'
 import { usePageTitle } from '@/lib/pageTitle'
+import ColdStartBanner from '@/components/ColdStartBanner'
 
 function triggerDownload(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob)
@@ -34,7 +35,7 @@ function triggerDownload(blob: Blob, filename: string): void {
 }
 
 export default function ScanExportsPage() {
-  const { currentScan: scan, scanError: error, scanId } = useScan()
+  const { currentScan: scan, scanError: error, scanId, coldStartPending } = useScan()
   const [downloading, setDownloading] = useState<'cbom' | 'report' | null>(null)
   const [dlError, setDlError] = useState<string | null>(null)
 
@@ -54,6 +55,10 @@ export default function ScanExportsPage() {
     } finally {
       setDownloading(null)
     }
+  }
+
+  if (coldStartPending && scan === null) {
+    return <ColdStartBanner />
   }
 
   if (error !== null && scan === null) {

@@ -50,6 +50,7 @@ import { usePageTitle } from '@/lib/pageTitle'
 import { RISK_COLORS, RISK_LABELS } from '@/lib/colors'
 import { useScan } from '@/lib/scanContext'
 import { useCountUp } from '@/lib/useCountUp'
+import ColdStartBanner from '@/components/ColdStartBanner'
 
 // -------------------------------------------------------------------
 // Chart palette — distinct hues for algorithm families
@@ -582,10 +583,13 @@ function DoneState({
 // -------------------------------------------------------------------
 
 export default function ScanOverviewPage() {
-  const { currentScan: scan, scanError: error } = useScan()
+  const { currentScan: scan, scanError: error, coldStartPending } = useScan()
   usePageTitle(scan ? `Scan ${scan.id} — Overview` : 'Scan')
 
-  // Error state
+  if (coldStartPending && scan === null) {
+    return <ColdStartBanner />
+  }
+
   if (error !== null && scan === null) {
     return (
       <>
@@ -600,7 +604,6 @@ export default function ScanOverviewPage() {
     )
   }
 
-  // Loading skeleton
   if (scan === null) {
     return (
       <div className="flex flex-col gap-6">
