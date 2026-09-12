@@ -17,6 +17,7 @@ import textwrap
 
 import pytest
 
+import ecdat_core.cli as cli
 from ecdat_core.ingestion import (
     ingest_git_url,
     ingest_local_directory,
@@ -572,3 +573,53 @@ class TestLocalPathWorkspaceSandbox:
 
         with pytest.raises(ValueError, match="outside SCAN_WORKSPACE_ROOT"):
             ingest_manifest_dependencies(str(outside))
+
+
+# ---------------------------------------------------------------------------
+# run_scan git flow — scanner-created clone dirs are exempt from the sandbox
+# ---------------------------------------------------------------------------
+
+
+class TestRunScanGitFlow:
+    """A git_url scan clones to /tmp; the clone dir must not trip the sandbox.
+
+    Regression for a bug the Phase 45 live Render check caught: the temp clone
+    directory is scanner-created (0o700, ephemeral), not a user-supplied path,
+    so ``run_scan`` scans it with ``sandboxed=False`` while user-supplied
+    local paths stay sandboxed.
+    """
+
+    def test_clone_dir_outside_workspace_is_scanned(
+        self, monkeypatch, tmp_path: object
+    ) -> None:
+        """A fake clone into a dir outside SCAN_WORKSPACE_ROOT still scans."""
+        import pathlib
+
+        ws = pathlib.Path(tmp_path) / "ws"  # type: ignore[arg-type]
+        ws.mkdir()
+        clone_dir = pathlib.Path(tmp_path) / "cloned"  # type: ignore[arg-type]
+        clone_dir.mkdir()
+        (clone_dir / "app.py").write_text("import hashlib\n", encoding="utf-8")
+        monkeypatch.setenv("SCAN_WORKSPACE_ROOT", str(ws))
+        monkeypatch.setattr(
+            cli, "ingest_git_url", lambda url, workdir=None: str(clone_dir)
+        )
+
+        result = cli.run_scan("https://1.1.1.1/org/repo.git", is_git_url=True)
+        assert result.files_scanned == 1
+        assert result.target == "https://1.1.1.1/org/repo.git"
+
+    def test_user_supplied_local_path_stays_sandboxed(
+        self, monkeypatch, tmp_path: object
+    ) -> None:
+        """The local_path route still rejects paths outside the workspace."""
+        import pathlib
+
+        ws = pathlib.Path(tmp_path) / "ws"  # type: ignore[arg-type]
+        ws.mkdir()
+        outside = pathlib.Path(tmp_path) / "outside"  # type: ignore[arg-type]
+        outside.mkdir()
+        monkeypatch.setenv("SCAN_WORKSPACE_ROOT", str(ws))
+
+        with pytest.raises(ValueError, match="outside SCAN_WORKSPACE_ROOT"):
+            cli.run_scan(str(outside), is_git_url=False)

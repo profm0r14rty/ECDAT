@@ -46,17 +46,25 @@ def run_scan(target: str, is_git_url: bool = False) -> ScanResult:
     """
     if is_git_url:
         scan_target = target
+        # The cloned directory below is scanner-created (tempfile.mkdtemp,
+        # mode 0700, ephemeral) — not a user-supplied path — so scanning it is
+        # exempt from the local-path sandbox.  The user-controlled git URL
+        # itself has already passed validate_git_url inside ingest_git_url.
         local_path = ingest_git_url(target)
+        sandboxed = False
     else:
         scan_target = str(Path(target).resolve())
         local_path = target
+        sandboxed = True
 
     signatures = _signature_lookup()
 
     detections: list[Detection] = []
     files_scanned = 0
 
-    for file_path, content, language in ingest_local_directory(local_path):
+    for file_path, content, language in ingest_local_directory(
+        local_path, sandboxed=sandboxed
+    ):
         files_scanned += 1
         detections.extend(scan_file_content(file_path, content, language))
 

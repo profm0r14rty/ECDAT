@@ -239,7 +239,9 @@ def _max_repo_size_bytes() -> int:
     return mb * 1024 * 1024
 
 
-def ingest_local_directory(path: str) -> Iterator[tuple[str, str, str]]:
+def ingest_local_directory(
+    path: str, *, sandboxed: bool = True
+) -> Iterator[tuple[str, str, str]]:
     """Walk *path* and yield source files suitable for cryptographic scanning.
 
     Traverses the directory tree rooted at *path*, skipping well-known
@@ -253,6 +255,11 @@ def ingest_local_directory(path: str) -> Iterator[tuple[str, str, str]]:
 
     Args:
         path: Root directory to walk.
+        sandboxed: When ``True`` (default) *path* must resolve inside
+            ``SCAN_WORKSPACE_ROOT`` (see :func:`validate_local_path`).  Pass
+            ``False`` only for scanner-created temporary clone directories
+            (see :func:`~ecdat_core.cli.run_scan`) — never for user-supplied
+            paths.
 
     Yields:
         Tuples of ``(file_path, content, language)`` for each successfully
@@ -260,12 +267,14 @@ def ingest_local_directory(path: str) -> Iterator[tuple[str, str, str]]:
 
     Raises:
         FileNotFoundError: If *path* does not exist or is not a directory.
-        ValueError: If *path* resolves outside ``SCAN_WORKSPACE_ROOT``.
+        ValueError: If ``sandboxed`` and *path* resolves outside
+            ``SCAN_WORKSPACE_ROOT``.
     """
     root = Path(path)
     if not root.is_dir():
         raise FileNotFoundError(f"Not a directory: {path}")
-    validate_local_path(path)
+    if sandboxed:
+        validate_local_path(path)
 
     for dirpath, dirnames, filenames in os.walk(root):
         # Prune skipped directories **in-place** so os.walk does not descend.

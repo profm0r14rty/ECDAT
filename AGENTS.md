@@ -60,6 +60,7 @@ Ingestion targets are the only user-controlled inputs that touch the network or 
 **local_path — workspace sandbox** (`validate_local_path`):
 - Every local-path scan target must resolve — symlinks followed via `os.path.realpath` — inside `SCAN_WORKSPACE_ROOT` (env). Default: the bundled `ecdat_core/tests/fixtures` directory, resolved package-relative so the container path (`/app/ecdat_core/tests/fixtures`) is covered automatically; existing fixture-based demo/showcase scans keep working with zero config.
 - Violations are rejected with a clear 400 at `POST /api/scans`, and `ingest_local_directory` / `ingest_manifest_dependencies` enforce the same containment as defense in depth.
+- One sanctioned exemption: `run_scan` scans a freshly-cloned git repo with `sandboxed=False` — the clone dir is scanner-created (`tempfile.mkdtemp`, mode 0700, ephemeral), never a user-supplied path. The user-controlled git URL already passed `validate_git_url`. Never apply this exemption to user-supplied paths.
 - To scan other directories in a hardened deployment, widen `SCAN_WORKSPACE_ROOT` (e.g. `/app/data`) — never disable the check.
 
 ## Frontend Conventions (Batch 3+)
