@@ -55,6 +55,7 @@ from backend.app.repository import (
 )
 from backend.app.summary import build_scan_result_from_rows, build_summary_from_rows
 from ecdat_core.cbom_export import export_cbom
+from ecdat_core.ingestion import validate_git_url, validate_local_path
 from ecdat_core.risk_engine import assess_risk
 from ecdat_core.signature_loader import get_all_signatures
 
@@ -159,6 +160,32 @@ class ArtefactOverrideRequest(BaseModel):
     migration_time_years: float | None = Field(default=None, ge=0)
 
 
+def _validate_scan_target(source_type: str, target: str) -> None:
+    """Reject scan targets that fail :mod:`ecdat_core.ingestion`'s security checks.
+
+    Delegates to ecdat_core's validation (the API never re-implements scanner
+    logic): local paths must resolve inside ``SCAN_WORKSPACE_ROOT`` and git
+    URLs must be public ``https://`` targets.  Rejecting the request up-front
+    with a 400 is cleaner than letting the background job fail asynchronously.
+
+    Args:
+        source_type: ``"git_url"`` or ``"local_path"``.
+        target: The scan target string from the request body.
+
+    Raises:
+        HTTPException: 400 with ecdat_core's rejection message.
+    """
+    try:
+        if source_type == "local_path":
+            validate_local_path(target)
+        else:
+            validate_git_url(target)
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)
+        ) from exc
+
+
 def _require_done_scan(session: Session, scan_id: str) -> ScanRun:
     """Return the scan run for *scan_id*, raising 404/409 when unavailable.
 
@@ -240,7 +267,15 @@ def create_scan(
 
     Returns:
         The created scan's id and ``"queued"`` status.
+
+    Raises:
+        HTTPException: 400 when the target fails the ingestion security
+            validation — a local path outside ``SCAN_WORKSPACE_ROOT``, or a
+            git URL with a non-https scheme / non-public resolved address /
+            host not on the ``GIT_URL_ALLOWED_HOSTS`` allowlist.
     """
+    _validate_scan_target(payload.source_type, payload.target)
+
     scan_run = create_scan_run(session, payload.target, payload.source_type)
     background_tasks.add_task(
         run_scan_job, scan_run.id, payload.target, payload.source_type

@@ -129,7 +129,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         result = run_scan(args.path, is_git_url=args.git_url)
-    except (OSError, RuntimeError) as exc:
+    except (OSError, RuntimeError, ValueError) as exc:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 

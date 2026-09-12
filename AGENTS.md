@@ -48,6 +48,20 @@ Type-hinted Python, Pydantic v2 models, pytest for all new logic, small single-p
 ## Backend Conventions (Batch 2+)
 FastAPI + SQLAlchemy 2.0 (typed `Mapped[...]` style) + Alembic migrations + Postgres for persistence, Redis for job status only (not a message broker — background work runs via FastAPI `BackgroundTasks`, not Celery, to avoid extra infra under the hackathon deadline). The API layer never duplicates `ecdat_core` logic — it calls into `ecdat_core.cli.run_scan` (or an equivalent orchestrator function) and persists the resulting `ScanResult`.
 
+## Security Conventions (Phase 45+)
+Ingestion targets are the only user-controlled inputs that touch the network or the filesystem, so both ingestion paths are sandboxed by default. The protections live in `ecdat_core/ingestion.py` (the capability boundary — defense in depth, CLI included) and are re-checked at request time in `backend/app/routers/scans.py` (`POST /api/scans` returns a clear 400 instead of an asynchronous background failure). Never bypass these validators when a new endpoint accepts a user-controlled path or URL.
+
+**git_url — SSRF protection** (`validate_git_url`, invoked before every `git clone`):
+1. Scheme must be `https://` only. `file://`, `git://`, `ssh://`, plain `http://`, and scheme-less strings are rejected with a clear message.
+2. The hostname is resolved via `socket.getaddrinfo` and **every** resolved address is checked against Python's `ipaddress` module — any address flagged `is_private`, `is_loopback`, `is_link_local`, `is_reserved`, or `is_multicast` rejects the URL (this blocks internal networks, loopback, and cloud metadata endpoints like `169.254.169.254`). Known residual risk: DNS-rebinding (resolve-then-connect TOCTOU) is not defended against at this stage — documented and accepted, do not "fix" it with more machinery.
+3. `GIT_URL_ALLOWED_HOSTS` (env, comma-separated hostnames, unset = no restriction) optionally restricts cloning to known git hosts for hardened deployments. The allowlist does **not** bypass the IP checks — an allowlisted host that resolves to a private address is still rejected.
+4. `GIT_URL_MAX_SIZE_MB` (env, default `200`) sets a post-clone size ceiling; an oversized clone aborts the scan cleanly (the temp clone directory is removed first) instead of consuming resources or hanging.
+
+**local_path — workspace sandbox** (`validate_local_path`):
+- Every local-path scan target must resolve — symlinks followed via `os.path.realpath` — inside `SCAN_WORKSPACE_ROOT` (env). Default: the bundled `ecdat_core/tests/fixtures` directory, resolved package-relative so the container path (`/app/ecdat_core/tests/fixtures`) is covered automatically; existing fixture-based demo/showcase scans keep working with zero config.
+- Violations are rejected with a clear 400 at `POST /api/scans`, and `ingest_local_directory` / `ingest_manifest_dependencies` enforce the same containment as defense in depth.
+- To scan other directories in a hardened deployment, widen `SCAN_WORKSPACE_ROOT` (e.g. `/app/data`) — never disable the check.
+
 ## Frontend Conventions (Batch 3+)
 - Stack: Vite + React 19 + TypeScript + Tailwind CSS v4 (via the `@tailwindcss/vite` plugin — no `tailwind.config.js`/`postcss.config.js`; v4 is configured in `src/index.css` + `vite.config.ts`), shadcn/ui (`components.json` base: `radix`, `baseColor: neutral`), React Router 7 (`createBrowserRouter`), Recharts for charts, axios for HTTP.
 - Components come from `npx shadcn@latest add <component>` — add through the CLI (it resolves registry + CSS vars), never hand-write `components.json`-tracked files. Import via `@/components/ui/...` (path alias `@/* -> src/*` lives in `vite.config.ts` and `tsconfig.app.json`).

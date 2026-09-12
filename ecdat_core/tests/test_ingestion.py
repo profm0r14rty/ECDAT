@@ -3,11 +3,16 @@
 Uses :mod:`pytest` ``tmp_path`` fixtures to build small directory trees on the
 fly so no network or real repositories are required (except the clone tests
 which are marked with ``@pytest.mark.network``).
+
+The module-scoped autouse fixture below sandboxes local-path ingestion to each
+test's ``tmp_path`` by setting ``SCAN_WORKSPACE_ROOT`` (Phase 45 security
+convention); the sandbox tests themselves override it explicitly.
 """
 
 from __future__ import annotations
 
 import json
+import os
 import textwrap
 
 import pytest
@@ -16,7 +21,27 @@ from ecdat_core.ingestion import (
     ingest_git_url,
     ingest_local_directory,
     ingest_manifest_dependencies,
+    validate_git_url,
+    validate_local_path,
 )
+
+
+@pytest.fixture(autouse=True)
+def _scan_workspace(monkeypatch, tmp_path: object) -> None:
+    """Sandbox local-path scans to this test's ``tmp_path``.
+
+    Phase 45 requires every local-path scan to resolve inside
+    ``SCAN_WORKSPACE_ROOT``; the existing tmp_path-based tests create their
+    trees inside pytest's temp dir, so pin the workspace root there.  Tests
+    that exercise the sandbox itself override the variable explicitly.
+
+    Scoped to this module only (defined here, not in conftest) so tests in
+    other modules — e.g. ``test_end_to_end.py`` scanning ``demo_repo`` — still
+    use the default workspace root (the bundled fixtures directory) unchanged.
+    """
+    import pathlib
+
+    monkeypatch.setenv("SCAN_WORKSPACE_ROOT", str(pathlib.Path(tmp_path)))
 
 
 # ---------------------------------------------------------------------------
@@ -296,8 +321,254 @@ class TestIngestGitUrl:
         import pathlib
 
         workdir = str(pathlib.Path(tmp_path) / "fail")  # type: ignore[arg-type]
-        with pytest.raises(RuntimeError, match="git clone failed"):
+        with pytest.raises(RuntimeError, match="Could not clone repository"):
             ingest_git_url(
                 "https://github.com/does-not-exist-ecdat-test-99999.git",
                 workdir=workdir,
             )
+
+
+# ---------------------------------------------------------------------------
+# validate_git_url — SSRF protection (no network needed: IP literals and
+# rejections-before-DNS only)
+# ---------------------------------------------------------------------------
+
+
+class TestValidateGitUrl:
+    """Reject non-https schemes and non-public resolved addresses."""
+
+    @pytest.mark.parametrize(
+        "bad_url",
+        [
+            "file:///etc/passwd",
+            "git://github.com/org/repo.git",
+            "ssh://git@github.com/org/repo.git",
+            "http://example.com/org/repo.git",
+            "github.com/profm0r14rty/ECDAT",  # no scheme at all
+            "not-a-url",
+        ],
+    )
+    def test_rejects_non_https_schemes(self, bad_url: str) -> None:
+        """file/git/ssh/http and scheme-less strings are rejected."""
+        with pytest.raises(ValueError, match="Only https://"):
+            validate_git_url(bad_url)
+
+    @pytest.mark.parametrize(
+        "internal_url",
+        [
+            "https://127.0.0.1/repo.git",  # loopback
+            "https://169.254.169.254/latest/meta-data/",  # cloud metadata / link-local
+            "https://10.0.0.5/repo.git",  # RFC1918 private
+            "https://192.168.1.10/org/repo.git",  # RFC1918 private
+        ],
+    )
+    def test_rejects_internal_addresses(self, internal_url: str) -> None:
+        """Any resolved address that is private/loopback/link-local is rejected."""
+        with pytest.raises(ValueError, match="non-public address"):
+            validate_git_url(internal_url)
+
+    def test_accepts_public_ip_literal(self) -> None:
+        """A public literal IP passes validation (no DNS needed)."""
+        validate_git_url("https://1.1.1.1/org/repo.git")
+
+    def test_allowlist_rejects_unlisted_host(self, monkeypatch) -> None:
+        """GIT_URL_ALLOWED_HOSTS restricts hosts even before the IP check."""
+        monkeypatch.setenv("GIT_URL_ALLOWED_HOSTS", "github.com,gitlab.com")
+        with pytest.raises(ValueError, match="GIT_URL_ALLOWED_HOSTS allowlist"):
+            validate_git_url("https://127.0.0.1/repo.git")
+
+    def test_allowlist_does_not_bypass_ip_checks(self, monkeypatch) -> None:
+        """A listed host still fails if it resolves to a non-public address."""
+        monkeypatch.setenv("GIT_URL_ALLOWED_HOSTS", "127.0.0.1")
+        with pytest.raises(ValueError, match="non-public address"):
+            validate_git_url("https://127.0.0.1/repo.git")
+
+    def test_allowlisted_public_literal_passes(self, monkeypatch) -> None:
+        """Both conditions met: on the allowlist AND a public address."""
+        monkeypatch.setenv("GIT_URL_ALLOWED_HOSTS", "1.1.1.1")
+        validate_git_url("https://1.1.1.1/org/repo.git")
+
+    def test_rejects_url_without_hostname(self) -> None:
+        """A URL with no hostname at all is rejected."""
+        with pytest.raises(ValueError, match="no hostname"):
+            validate_git_url("https:///path/to/repo")
+
+
+# ---------------------------------------------------------------------------
+# ingest_git_url — post-clone size ceiling (subprocess.run faked, no network)
+# ---------------------------------------------------------------------------
+
+
+class _FakeCloneResult:
+    """Minimal stand-in for a successful ``subprocess.run`` result."""
+
+    returncode = 0
+    stderr = ""
+
+
+def _fake_successful_clone(payload: bytes):
+    """Return a ``subprocess.run`` fake that writes *payload* into the target dir."""
+
+    def _run(cmd, capture_output=True, text=True, timeout=None):
+        import pathlib
+
+        target = pathlib.Path(cmd[-1])
+        target.mkdir(parents=True, exist_ok=True)
+        (target / "payload.bin").write_bytes(payload)
+        return _FakeCloneResult()
+
+    return _run
+
+
+class TestGitUrlSizeCeiling:
+    """``GIT_URL_MAX_SIZE_MB`` aborts oversized clones cleanly."""
+
+    def test_over_limit_aborts_and_removes_temp_dir(
+        self, monkeypatch, tmp_path: object
+    ) -> None:
+        """Exceeding the ceiling raises and cleans up the temp clone."""
+        import pathlib
+
+        import ecdat_core.ingestion as ingestion
+
+        clone_dir = pathlib.Path(tmp_path) / "clone"  # type: ignore[arg-type]
+        monkeypatch.setenv("GIT_URL_MAX_SIZE_MB", "1")
+        monkeypatch.setattr(ingestion.tempfile, "mkdtemp", lambda prefix="": str(clone_dir))
+        monkeypatch.setattr(
+            ingestion.subprocess, "run", _fake_successful_clone(b"x" * (2 * 1024 * 1024))
+        )
+
+        with pytest.raises(RuntimeError, match="GIT_URL_MAX_SIZE_MB"):
+            ingest_git_url("https://1.1.1.1/org/huge.git")
+        assert not clone_dir.exists()
+
+    def test_over_limit_keeps_provided_workdir(
+        self, monkeypatch, tmp_path: object
+    ) -> None:
+        """A caller-provided workdir is left in place when the ceiling trips."""
+        import pathlib
+
+        import ecdat_core.ingestion as ingestion
+
+        workdir = pathlib.Path(tmp_path) / "work"  # type: ignore[arg-type]
+        monkeypatch.setenv("GIT_URL_MAX_SIZE_MB", "1")
+        monkeypatch.setattr(
+            ingestion.subprocess, "run", _fake_successful_clone(b"x" * (2 * 1024 * 1024))
+        )
+
+        with pytest.raises(RuntimeError, match="GIT_URL_MAX_SIZE_MB"):
+            ingest_git_url("https://1.1.1.1/org/huge.git", workdir=str(workdir))
+        assert workdir.exists()
+
+    def test_within_limit_returns_clone_path(
+        self, monkeypatch, tmp_path: object
+    ) -> None:
+        """A repo under the ceiling clones successfully (well-formed URL path)."""
+        import pathlib
+
+        import ecdat_core.ingestion as ingestion
+
+        workdir = pathlib.Path(tmp_path) / "ok"  # type: ignore[arg-type]
+        monkeypatch.setenv("GIT_URL_MAX_SIZE_MB", "100")
+        monkeypatch.setattr(
+            ingestion.subprocess, "run", _fake_successful_clone(b"tiny repo")
+        )
+
+        result = ingest_git_url("https://1.1.1.1/org/repo.git", workdir=str(workdir))
+        assert result == str(workdir)
+        assert (workdir / "payload.bin").read_bytes() == b"tiny repo"
+
+
+# ---------------------------------------------------------------------------
+# validate_local_path / ingest_local_directory — workspace sandbox
+# ---------------------------------------------------------------------------
+
+
+class TestLocalPathWorkspaceSandbox:
+    """``SCAN_WORKSPACE_ROOT`` blocks arbitrary path reads."""
+
+    def test_rejects_path_outside_configured_workspace(
+        self, monkeypatch, tmp_path: object
+    ) -> None:
+        """A path outside the configured workspace root is rejected."""
+        import pathlib
+
+        ws = pathlib.Path(tmp_path) / "ws"  # type: ignore[arg-type]
+        ws.mkdir()
+        outside = pathlib.Path(tmp_path) / "outside"  # type: ignore[arg-type]
+        outside.mkdir()
+        monkeypatch.setenv("SCAN_WORKSPACE_ROOT", str(ws))
+
+        with pytest.raises(ValueError, match="outside SCAN_WORKSPACE_ROOT"):
+            validate_local_path(str(outside))
+        with pytest.raises(ValueError, match="outside SCAN_WORKSPACE_ROOT"):
+            list(ingest_local_directory(str(outside)))
+
+    def test_rejects_symlink_escape(self, monkeypatch, tmp_path: object) -> None:
+        """A symlink inside the workspace pointing outside is rejected."""
+        import pathlib
+
+        ws = pathlib.Path(tmp_path) / "ws"  # type: ignore[arg-type]
+        ws.mkdir()
+        secret = pathlib.Path(tmp_path) / "secret"  # type: ignore[arg-type]
+        secret.mkdir()
+        (secret / "key.py").write_text("x = 1\n", encoding="utf-8")
+        link = ws / "escape"
+        link.symlink_to(secret, target_is_directory=True)
+        monkeypatch.setenv("SCAN_WORKSPACE_ROOT", str(ws))
+
+        with pytest.raises(ValueError, match="outside SCAN_WORKSPACE_ROOT"):
+            validate_local_path(str(link))
+
+    def test_accepts_path_inside_workspace(self, monkeypatch, tmp_path: object) -> None:
+        """Nested paths inside the workspace still scan normally."""
+        import pathlib
+
+        ws = pathlib.Path(tmp_path) / "ws"  # type: ignore[arg-type]
+        repo = ws / "repo"
+        repo.mkdir(parents=True)
+        (repo / "app.py").write_text("x = 1\n", encoding="utf-8")
+        monkeypatch.setenv("SCAN_WORKSPACE_ROOT", str(ws))
+
+        assert validate_local_path(str(repo)) == str(repo.resolve())
+        results = list(ingest_local_directory(str(repo)))
+        assert [r[0].endswith("app.py") for r in results] == [True]
+
+    def test_accepts_workspace_root_itself(self, monkeypatch, tmp_path: object) -> None:
+        """The workspace root itself is a valid scan path."""
+        import pathlib
+
+        ws = pathlib.Path(tmp_path) / "ws"  # type: ignore[arg-type]
+        ws.mkdir()
+        monkeypatch.setenv("SCAN_WORKSPACE_ROOT", str(ws))
+        assert validate_local_path(str(ws)) == str(ws.resolve())
+
+    def test_default_workspace_is_fixtures_root(self, monkeypatch) -> None:
+        """With SCAN_WORKSPACE_ROOT unset the bundled fixtures stay scannable."""
+        import pathlib
+
+        monkeypatch.delenv("SCAN_WORKSPACE_ROOT", raising=False)
+        fixtures = pathlib.Path(__file__).parent / "fixtures"
+
+        # The existing demo fixture scans keep working unchanged...
+        assert validate_local_path(str(fixtures / "demo_repo")) == str(
+            (fixtures / "demo_repo").resolve()
+        )
+        assert len(list(ingest_local_directory(str(fixtures / "demo_repo")))) > 0
+        # ...while arbitrary paths stay blocked.
+        with pytest.raises(ValueError, match="outside SCAN_WORKSPACE_ROOT"):
+            validate_local_path("/tmp")
+
+    def test_manifest_deps_respects_sandbox(self, monkeypatch, tmp_path: object) -> None:
+        """ingest_manifest_dependencies enforces the same containment rule."""
+        import pathlib
+
+        ws = pathlib.Path(tmp_path) / "ws"  # type: ignore[arg-type]
+        ws.mkdir()
+        outside = pathlib.Path(tmp_path) / "outside"  # type: ignore[arg-type]
+        outside.mkdir()
+        (outside / "requirements.txt").write_text("requests==2.31.0\n", encoding="utf-8")
+        monkeypatch.setenv("SCAN_WORKSPACE_ROOT", str(ws))
+
+        with pytest.raises(ValueError, match="outside SCAN_WORKSPACE_ROOT"):
+            ingest_manifest_dependencies(str(outside))
