@@ -25,6 +25,12 @@ _TOOL_VERSION = "0.1.0"
 # ---------------------------------------------------------------------------
 # Algorithm family keywords → CycloneDX ``algorithmProperties.primitive``.
 # Checked case-insensitively against ``algorithm_family``.
+#
+# The values MUST be members of the official CycloneDX 1.6
+# ``algorithmProperties.primitive`` enum (verified against
+# bom-1.6.schema.json): ``signature``, ``hash``, ``block-cipher``,
+# ``key-agree``, ``kem``, ``pke``, ... — note ``key-agree``, NOT
+# ``key-agreement``.
 # ---------------------------------------------------------------------------
 _PRIMITIVE_RULES: list[tuple[str, str]] = [
     ("sign", "signature"),
@@ -41,11 +47,12 @@ _PRIMITIVE_RULES: list[tuple[str, str]] = [
     ("rc4", "block-cipher"),
     ("chacha", "block-cipher"),
     ("salsa", "block-cipher"),
-    ("dh", "key-agreement"),
-    ("ecdh", "key-agreement"),
-    ("key-agreement", "key-agreement"),
-    ("key-exchange", "key-agreement"),
-    ("kem", "key-agreement"),
+    ("rsa", "pke"),
+    ("dh", "key-agree"),
+    ("ecdh", "key-agree"),
+    ("key-agreement", "key-agree"),
+    ("key-exchange", "key-agree"),
+    ("kem", "kem"),
 ]
 
 
@@ -169,7 +176,9 @@ def _classify_primitive(algorithm_family: str) -> str | None:
 
     Returns:
         One of ``"signature"``, ``"hash"``, ``"block-cipher"``,
-        ``"key-agreement"``, or ``None`` if unclassifiable.
+        ``"key-agree"``, ``"kem"``, ``"pke"``, or ``None`` if unclassifiable.
+        Returned values are members of the official CycloneDX 1.6
+        ``algorithmProperties.primitive`` enum.
     """
     family_lower = algorithm_family.lower()
     for keyword, primitive in _PRIMITIVE_RULES:
@@ -202,19 +211,25 @@ def _build_component(
     if detection.asset_type == "algorithm":
         algo_props: dict = {}
         primitive = _classify_primitive(detection.algorithm_family)
-        if primitive is not None:
-            algo_props["primitive"] = primitive
-        else:
-            algo_props["primitive"] = None
-        algo_props["parameterSetIdentifier"] = (
-            str(detection.key_size_bits) if detection.key_size_bits is not None else None
-        )
+        # The official CycloneDX 1.6 schema types ``primitive`` as a string
+        # enum without ``null``: an unclassifiable family is emitted as the
+        # schema-sanctioned "unknown" rather than null (which the schema
+        # rejects) or an omitted key.
+        algo_props["primitive"] = primitive if primitive is not None else "unknown"
+        if detection.key_size_bits is not None:
+            algo_props["parameterSetIdentifier"] = str(detection.key_size_bits)
         crypto_props["algorithmProperties"] = algo_props
 
     # --- properties ---
     properties = [
-        {"name": "ecdat:quantumVulnerable", "value": str(detection.quantum_vulnerable)},
-        {"name": "ecdat:classicallyBroken", "value": str(detection.classically_broken)},
+        {
+            "name": "ecdat:quantumVulnerable",
+            "value": "true" if detection.quantum_vulnerable else "false",
+        },
+        {
+            "name": "ecdat:classicallyBroken",
+            "value": "true" if detection.classically_broken else "false",
+        },
         {"name": "ecdat:riskLevel", "value": ra.risk_level if ra else ""},
         {"name": "ecdat:confidence", "value": str(detection.confidence)},
         {"name": "ecdat:recommendedAlgorithm", "value": rec.recommended_algorithm if rec else ""},

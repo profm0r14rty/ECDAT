@@ -15,6 +15,7 @@ dependencies = [
 dev = [
     "pytest",
     "pytest-cov",
+    "jsonschema",  # official CycloneDX 1.6 CBOM schema validation (Phase 48)
 ]
 
 [tool.setuptools.packages.find]

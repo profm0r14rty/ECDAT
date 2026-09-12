@@ -121,6 +121,8 @@ Open the **Exports** tab. Click **"Download CBOM (CycloneDX 1.6 JSON)"**.
 Open the downloaded file. Show:
 
 - `bomFormat: "CycloneDX"`, `specVersion: "1.6"` — the real standard
+- every export is validated against the **official CycloneDX 1.6 JSON Schema**
+  (vendored in the repo; `ecdat_core/tests/test_cbom_schema.py`) — zero errors
 - `type: "cryptographic-asset"` on every component
 - `cryptoProperties.assetType` in `["algorithm", "certificate", ...]`
 - `ecdat:riskLevel`, `ecdat:quantumVulnerable`, `ecdat:classicallyBroken` — our

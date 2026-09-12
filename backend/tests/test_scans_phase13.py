@@ -226,8 +226,8 @@ def test_cbom_download_valid_cyclonedx(client):
             "low",
             "quantum-safe",
         }
-        assert ecdat_props["ecdat:quantumVulnerable"] in {"True", "False"}
-        assert ecdat_props["ecdat:classicallyBroken"] in {"True", "False"}
+        assert ecdat_props["ecdat:quantumVulnerable"] in {"true", "false"}
+        assert ecdat_props["ecdat:classicallyBroken"] in {"true", "false"}
 
     # A second download is still a valid BOM (serialNumber may legitimately
     # differ per export, so only assert the structural contract).

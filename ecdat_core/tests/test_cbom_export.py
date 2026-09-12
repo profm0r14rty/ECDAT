@@ -257,16 +257,31 @@ class TestExportCbom:
             assert occs[0]["location"] == det.file_path
             assert occs[0]["line"] == det.line_number
 
-    def test_quantum_vulnerable_component_properties(self) -> None:
-        """Quantum-vulnerable detection has correct property value."""
+    def test_boolean_properties_use_lowercase(self) -> None:
+        """Boolean ecdat: properties serialize as lowercase 'true'/'false'."""
         result = export_cbom(_SCAN_RESULT)
-        rsa_comp = next(
-            c for c in result["components"] if c["bom-ref"] == "det-rsa-1"
-        )
-        qv = next(
-            p for p in rsa_comp["properties"] if p["name"] == "ecdat:quantumVulnerable"
-        )
-        assert qv["value"] == "True"
+        by_ref = {c["bom-ref"]: c for c in result["components"]}
+        props = {
+            p["name"]: p["value"]
+            for p in by_ref["det-rsa-1"]["properties"]
+        }
+        # RSA-1024: quantum-vulnerable, not classically broken.
+        assert props["ecdat:quantumVulnerable"] == "true"
+        assert props["ecdat:classicallyBroken"] == "false"
+        # AES-256: quantum-safe, not classically broken.
+        aes_props = {
+            p["name"]: p["value"]
+            for p in by_ref["det-aes-1"]["properties"]
+        }
+        assert aes_props["ecdat:quantumVulnerable"] == "false"
+        assert aes_props["ecdat:classicallyBroken"] == "false"
+        # MD5: not quantum-vulnerable but classically broken.
+        md5_props = {
+            p["name"]: p["value"]
+            for p in by_ref["det-md5-1"]["properties"]
+        }
+        assert md5_props["ecdat:quantumVulnerable"] == "false"
+        assert md5_props["ecdat:classicallyBroken"] == "true"
 
     def test_primitive_classification(self) -> None:
         """Algorithm families get correct primitive values best-effort."""
@@ -282,11 +297,39 @@ class TestExportCbom:
         )
         assert sha_comp["cryptoProperties"]["algorithmProperties"]["primitive"] == "hash"
         assert aes_comp["cryptoProperties"]["algorithmProperties"]["primitive"] == "block-cipher"
-        # "RSA" matches no keyword rule — primitive falls back to None.
-        assert rsa_comp["cryptoProperties"]["algorithmProperties"]["primitive"] is None
+        # RSA is public-key encryption: "pke" is the official primitive enum member.
+        assert rsa_comp["cryptoProperties"]["algorithmProperties"]["primitive"] == "pke"
+
+    def test_unclassifiable_primitive_is_unknown(self) -> None:
+        """An unclassifiable family is emitted as the schema-valid "unknown"."""
+        det = Detection(
+            id="det-unknown-1",
+            file_path="src/main.py",
+            line_number=7,
+            matched_text="superfrobnicate()",
+            asset_type="algorithm",
+            algorithm_family="XYZZY",
+            key_size_bits=None,
+            quantum_vulnerable=True,
+            confidence=0.5,
+            language="python",
+            detection_method="regex",
+        )
+        result = export_cbom(
+            ScanResult(
+                scan_id="scan-edge",
+                target="/edge",
+                detections=[det],
+                risk_assessments=[],
+                recommendations=[],
+                scanned_at="2026-09-08T12:00:00Z",
+            )
+        )
+        alg_props = result["components"][0]["cryptoProperties"]["algorithmProperties"]
+        assert alg_props["primitive"] == "unknown"
 
     def test_parameter_set_identifier_from_key_size(self) -> None:
-        """parameterSetIdentifier is str(key_size_bits) when present, else None."""
+        """parameterSetIdentifier is str(key_size_bits) and absent when no key size."""
         result = export_cbom(_SCAN_RESULT)
         rsa_comp = next(
             c for c in result["components"] if c["bom-ref"] == "det-rsa-1"
@@ -298,7 +341,9 @@ class TestExportCbom:
             c for c in result["components"] if c["bom-ref"] == "det-sha-1"
         )
         sha_alg_props = sha_comp["cryptoProperties"]["algorithmProperties"]
-        assert sha_alg_props["parameterSetIdentifier"] is None
+        # The official schema types parameterSetIdentifier as a string without
+        # null; omitting it is the schema-valid way to say "no key size known".
+        assert "parameterSetIdentifier" not in sha_alg_props
 
 
 # ---------------------------------------------------------------------------
