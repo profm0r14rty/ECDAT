@@ -43,6 +43,9 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-ecdat}:${POSTGRES_PASSWORD:-ecdat}@postgres:5432/${POSTGRES_DB:-ecdat}
       REDIS_URL: redis://redis:6379/0
+      # Phase 46 optional API-key gate — off by default; flip on via .env.
+      REQUIRE_API_KEY: ${REQUIRE_API_KEY:-false}
+      API_KEYS: ${API_KEYS:-}
     ports:
       - "8000:8000"
     working_dir: /app/backend

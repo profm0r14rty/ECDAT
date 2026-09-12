@@ -53,13 +53,25 @@ from backend.app.repository import (
     list_scan_runs,
     update_risk_assessment,
 )
+from backend.app.security import require_api_key
 from backend.app.summary import build_scan_result_from_rows, build_summary_from_rows
 from ecdat_core.cbom_export import export_cbom
 from ecdat_core.ingestion import validate_git_url, validate_local_path
 from ecdat_core.risk_engine import assess_risk
 from ecdat_core.signature_loader import get_all_signatures
 
-router = APIRouter(prefix="/api/scans", tags=["scans"])
+# Phase 46: optional Bearer API-key gate (backend/app/security.py), off by
+# default. When enabled (REQUIRE_API_KEY=true) ALL routes below — reads too,
+# not just POST/PATCH — need `Authorization: Bearer <key>`: the motivating
+# leak is "anyone with the URL reads everyone's scan history / artefacts /
+# CBOM exports". Router-level dependencies run before handlers, so a missing
+# key yields 401 (not 404), denying scan-existence probing. `GET /health` stays
+# open for Render health checks / warm-keeping pings.
+router = APIRouter(
+    prefix="/api/scans",
+    tags=["scans"],
+    dependencies=[Depends(require_api_key)],
+)
 
 DbSession = Annotated[Session, Depends(get_db)]
 
