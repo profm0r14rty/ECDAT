@@ -16,6 +16,7 @@ dependencies = [
     "psycopg2-binary",
     "redis",
     "python-multipart",
+    "slowapi>=0.1.10",
     "pytest",
     "httpx",
 ]

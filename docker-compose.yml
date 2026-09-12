@@ -46,6 +46,10 @@ services:
       # Phase 46 optional API-key gate — off by default; flip on via .env.
       REQUIRE_API_KEY: ${REQUIRE_API_KEY:-false}
       API_KEYS: ${API_KEYS:-}
+      # Phase 47 scan-creation rate limit — throttles POST /api/scans per
+      # client (key-based when REQUIRE_API_KEY=true, IP-based otherwise).
+      SCAN_CREATE_RATE_LIMIT: ${SCAN_CREATE_RATE_LIMIT:-10/hour}
+      RATE_LIMIT_STORAGE_URI: ${RATE_LIMIT_STORAGE_URI:-memory://}
     ports:
       - "8000:8000"
     working_dir: /app/backend

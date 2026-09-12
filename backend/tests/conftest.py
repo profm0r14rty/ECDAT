@@ -87,6 +87,24 @@ def db_session_factory(monkeypatch) -> Iterator[sessionmaker]:
             os.unlink(db_path)
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter_storage() -> Iterator[None]:
+    """Reset the process-wide slowapi rate-limit storage before every test.
+
+    The :class:`slowapi.Limiter` (Phase 47) is module-global and its memory
+    storage persists across requests on the same app instance. Without this,
+    one test's bucket consumption — e.g. the 429-trigger tests exhausting
+    ``2/minute`` — would leak into the next test, and the whole suite firing
+    POSTs under the default ``10/hour`` would trip spurious 429s.
+    ``Limiter.reset()`` is a logged no-op on storage backends that cannot
+    reset; our default ``memory://`` backend can.
+    """
+    limiter = getattr(app.state, "limiter", None)
+    if limiter is not None:
+        limiter.reset()
+    yield
+
+
 @pytest.fixture
 def client(db_session_factory) -> Iterator[TestClient]:
     """TestClient wired to the throwaway SQLite DB.

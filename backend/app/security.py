@@ -34,7 +34,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def _parse_api_keys(raw: str | None) -> list[str]:
+def parse_api_keys(raw: str | None) -> list[str]:
     """Split a comma-separated ``API_KEYS`` value into non-empty, trimmed keys.
 
     Args:
@@ -71,7 +71,7 @@ def require_api_key(
     if os.environ.get("REQUIRE_API_KEY", "false").strip().lower() != "true":
         return
 
-    valid_keys = _parse_api_keys(os.environ.get("API_KEYS"))
+    valid_keys = parse_api_keys(os.environ.get("API_KEYS"))
     if not valid_keys:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,

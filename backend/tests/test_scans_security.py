@@ -73,18 +73,38 @@ class TestGitUrlSsrFProtection:
     @pytest.mark.parametrize(
         "bad_url",
         [
-            "file:///etc/passwd",
             "git://github.com/org/repo.git",
             "ssh://git@github.com/org/repo.git",
             "http://example.com/org/repo.git",
-            "not-a-url",
         ],
     )
     def test_non_https_schemes_are_rejected(self, client, bad_url: str) -> None:
-        """file/git/ssh/http and scheme-less strings must 400."""
+        """git/ssh/http URLs are URL-shaped (they pass the Phase 47 schema
+        check) but fail ingestion's https-only policy with a clear 400."""
         response = client.post(
             "/api/scans",
             json={"source_type": "git_url", "target": bad_url},
         )
         assert response.status_code == 400
         assert "Only https://" in response.json()["detail"]
+
+    @pytest.mark.parametrize(
+        "garbage",
+        [
+            "file:///etc/passwd",
+            "not-a-url",
+        ],
+    )
+    def test_obvious_garbage_rejected_at_schema_layer(
+        self, client, garbage: str
+    ) -> None:
+        """Phase 47: strings that are not URL-shaped at all (scheme-less, or a
+        scheme with no host like ``file://``) are rejected 422 by the Pydantic
+        layer before ingestion — previously they reached ``validate_git_url``
+        and returned 400. Documented behavior change: same rejection intent,
+        faster, with a schema-level message."""
+        response = client.post(
+            "/api/scans",
+            json={"source_type": "git_url", "target": garbage},
+        )
+        assert response.status_code == 422

@@ -28,10 +28,19 @@ from __future__ import annotations
 
 from datetime import datetime
 from typing import Annotated, Literal
+from urllib.parse import urlparse
 
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Query,
+    Request,
+    status,
+)
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
 from backend.app.db import get_db
@@ -43,6 +52,7 @@ from backend.app.models_orm import (
     ScanRun,
     ScanStatus,
 )
+from backend.app.rate_limit import limiter, scan_create_limit_spec
 from backend.app.repository import (
     create_scan_run,
     detection_row_to_model,
@@ -86,7 +96,26 @@ class CreateScanRequest(BaseModel):
     """Request body for ``POST /api/scans``."""
 
     source_type: Literal["git_url", "local_path"]
-    target: str = Field(min_length=1)
+    target: str = Field(min_length=1, max_length=2048)
+
+    @model_validator(mode="after")
+    def _git_url_must_be_url_shaped(self) -> CreateScanRequest:
+        """Reject obviously-garbage git_url targets at the schema layer.
+
+        This is a *shape* check only — a URL must identify a scheme and a host
+        — so pure garbage (``not-a-url``, ``https://``) fails fast with a 422
+        before it reaches ingestion. The https-only / SSRF / allowlist security
+        policy stays in :func:`ecdat_core.ingestion.validate_git_url` as the
+        single source of truth (non-https URLs remain a clear 400 there).
+        """
+        if self.source_type == "git_url":
+            parts = urlparse(self.target)
+            if not parts.scheme or not parts.netloc:
+                raise ValueError(
+                    "target must be a URL (scheme://host/...) for "
+                    "source_type 'git_url'"
+                )
+        return self
 
 
 class ScanCreatedResponse(BaseModel):
@@ -166,10 +195,16 @@ class ArtefactListResponse(BaseModel):
 
 
 class ArtefactOverrideRequest(BaseModel):
-    """PATCH body: explicit risk-engine overrides (``None`` = use heuristics)."""
+    """PATCH body: explicit risk-engine overrides (``None`` = use heuristics).
 
-    shelf_life_years: float | None = Field(default=None, ge=0)
-    migration_time_years: float | None = Field(default=None, ge=0)
+    The fields are Mosca's X (migration time) and Y (shelf life) in years:
+    ``None`` keeps the engine's defaults, negatives are meaningless, and a
+    multi-century planning horizon is absurd — both bounds are enforced here
+    at the schema layer (a clean 422) instead of flowing into the risk engine.
+    """
+
+    shelf_life_years: float | None = Field(default=None, ge=0, le=200)
+    migration_time_years: float | None = Field(default=None, ge=0, le=200)
 
 
 def _validate_scan_target(source_type: str, target: str) -> None:
@@ -265,14 +300,23 @@ def _artefact_from_rows(
     status_code=status.HTTP_202_ACCEPTED,
     response_model=ScanCreatedResponse,
 )
+@limiter.limit(scan_create_limit_spec)
 def create_scan(
+    request: Request,
     payload: CreateScanRequest,
     background_tasks: BackgroundTasks,
     session: DbSession,
 ) -> ScanCreatedResponse:
     """Create a queued scan run and schedule the scan as a background task.
 
+    Rate-limited per client by :func:`backend.app.rate_limit.scan_client_key`
+    (API-key-based when the Phase 46 gate is on and a valid key is sent,
+    IP-based otherwise; default ``10/hour`` via ``SCAN_CREATE_RATE_LIMIT``).
+    The limit is checked inside the endpoint, so requests that fail body
+    validation (422) or the auth gate (401) never consume the bucket.
+
     Args:
+        request: The incoming request (rate-limit identity + headers).
         payload: The scan request (source type + target path/URL).
         background_tasks: FastAPI background task scheduler.
         session: SQLAlchemy session from the ``get_db`` dependency.
@@ -284,7 +328,8 @@ def create_scan(
         HTTPException: 400 when the target fails the ingestion security
             validation — a local path outside ``SCAN_WORKSPACE_ROOT``, or a
             git URL with a non-https scheme / non-public resolved address /
-            host not on the ``GIT_URL_ALLOWED_HOSTS`` allowlist.
+            host not on the ``GIT_URL_ALLOWED_HOSTS`` allowlist. 429 when the
+            per-client rate limit is exceeded.
     """
     _validate_scan_target(payload.source_type, payload.target)
 
