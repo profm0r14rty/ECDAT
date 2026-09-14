@@ -680,7 +680,7 @@ function Footer() {
             <ul className="mt-3 space-y-2 text-sm">
               <li>
                 <a
-                  href="https://github.com/Pratyay360/ECDAT"
+                  href="https://github.com/profm0r14rty/ECDAT"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground transition-colors"
