@@ -3,7 +3,12 @@
 Public API:
     - :func:`run_scan` — orchestrate a full scan (ingest -> detect -> assess
       -> recommend -> assemble) and return a :class:`ScanResult`.
-    - :func:`main` — console entrypoint for ``python -m ecdat_core.cli``.
+    - :func:`main` — console entrypoint for both the ``ecdat`` command
+      (registered via ``[project.scripts]`` in pyproject.toml as
+      ``ecdat = "ecdat_core.cli:main"``) and the ``python -m ecdat_core.cli``
+      module invocation. Argparse resolves ``argv=None`` to ``sys.argv[1:]``,
+      so the setuptools-generated wrapper calling ``main()`` with no arguments
+      behaves identically to the module form.
 
 The ``scan`` subcommand runs :func:`run_scan` over a local directory or git
 URL, writes ``cbom.json`` and ``summary.json`` to the current working
