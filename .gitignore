@@ -139,5 +139,3 @@ pytest_cache/
 # ---------------- Playwright MCP artifacts ----------------
 .playwright-mcp/
 .aider*
-AGENTS.md
-progress.md
