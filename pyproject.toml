@@ -1,12 +1,36 @@
 [build-system]
-requires = ["setuptools>=68.0"]
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ecdat-core"
+name = "ecdat-cbom"
 version = "0.1.0"
-description = "Cryptography Bill of Materials scanner for post-quantum readiness assessment"
+description = "Cryptography Bill of Materials (CBOM) scanner for post-quantum readiness assessment"
+readme = "ecdat_core/README.md"
 requires-python = ">=3.12"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [
+    { name = "ECDAT Team" },
+]
+keywords = [
+    "cryptography",
+    "cbom",
+    "post-quantum",
+    "pqc",
+    "sbom",
+    "cyclonedx",
+    "security",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Information Technology",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Quality Assurance",
+]
 dependencies = [
     "pydantic>=2",
 ]
@@ -17,6 +41,11 @@ dev = [
     "pytest-cov",
     "jsonschema",  # official CycloneDX 1.6 CBOM schema validation (Phase 48)
 ]
+
+[project.urls]
+Homepage = "https://github.com/profm0r14rty/ecdat"
+Repository = "https://github.com/profm0r14rty/ecdat"
+Issues = "https://github.com/profm0r14rty/ecdat/issues"
 
 [tool.setuptools.packages.find]
 include = ["ecdat_core*"]

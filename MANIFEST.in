@@ -1,0 +1,27 @@
+# MANIFEST.in — controls the SOURCE DISTRIBUTION (sdist) file list.
+# The WHEEL is governed by [tool.setuptools.packages.find] and
+# [tool.setuptools.package-data] in pyproject.toml.
+#
+# This repo is a monorepo (ecdat_core + backend + frontend), but only
+# `ecdat_core` is published on PyPI. Everything else is pruned so
+# `pip download ecdat-cbom` never pulls in the FastAPI backend or the
+# React frontend. LICENSE is handled by [project] license-files and is
+# not re-listed here.
+
+include README.md
+include pyproject.toml
+include ecdat_core/README.md
+
+# Ship tests + fixtures in the sdist only (standard practice; tests are not
+# part of the wheel).
+recursive-include ecdat_core/tests *
+
+# Never ship the monorepo's non-published areas.
+prune backend
+prune frontend
+
+# Housekeeping.
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude *.so
+global-exclude .DS_Store
