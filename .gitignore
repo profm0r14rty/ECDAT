@@ -138,4 +138,9 @@ pytest_cache/
 .omo/
 # ---------------- Playwright MCP artifacts ----------------
 .playwright-mcp/
+
+# ---------------- Aider local state ----------------
+# Aider's generated local files (chat/input history, tags cache, etc.).
+# Keep the committed project config (.aider.conf.yml) tracked.
 .aider*
+!.aider.conf.yml
