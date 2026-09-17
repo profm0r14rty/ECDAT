@@ -13,6 +13,9 @@ line or is imported directly; no FastAPI, Postgres, Redis, or Docker needed.
 
 ## Install
 
+Published to PyPI — the fastest way to try the scanner is to install it and
+point it at a directory:
+
 ```bash
 pip install ecdat-cbom
 ```
@@ -70,6 +73,25 @@ Quantum-risk extensions live under the standard `properties` array with an
 `ecdat:recommendedAlgorithm`, `ecdat:fipsReference`), so existing CycloneDX
 tooling — Dependency-Track, Syft, Grype, and friends — parses the output
 without change.
+
+## Why this is more than a hackathon prototype
+
+- **Real CycloneDX 1.6 output, validated against the official schema.** The
+  CBOM is not a lookalike JSON blob — it validates against the official
+  CycloneDX 1.6 JSON Schema (vendored, and enforced by the scanner's test
+  suite), so Dependency-Track, Syft, and other CycloneDX tooling parse it
+  unchanged.
+- **It distinguishes *classically broken* from *quantum vulnerable*.** The
+  common shortcut is to collapse "uses crypto" into a single quantum-risk
+  score. ECDAT reports two separate booleans: `classically_broken` (MD5,
+  SHA-1, DES, 3DES, RC4 — exploitable today, independent of quantum computers)
+  and `quantum_vulnerable` (RSA, ECC, DH, DSA — broken specifically by Shor's
+  algorithm). An actively broken hash is therefore never mislabeled
+  "quantum-safe".
+- **The security posture is documented, not implied.** SSRF controls on
+  Git-URL scanning, the local-path sandbox, the optional API-key gate, and
+  scan-creation rate limiting are described with their actual mechanisms in
+  [SECURITY.md](SECURITY.md).
 
 ## Full project
 
