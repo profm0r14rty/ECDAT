@@ -40,6 +40,8 @@ dev = [
     "pytest",
     "pytest-cov",
     "jsonschema",  # official CycloneDX 1.6 CBOM schema validation (Phase 48)
+    "build",       # PEP 517 build frontend — `python -m build` (Phase 53)
+    "twine",       # TestPyPI/PyPI upload tooling (Phase 53)
 ]
 
 [project.urls]
