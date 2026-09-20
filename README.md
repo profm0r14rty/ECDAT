@@ -1,104 +1,114 @@
-# ecdat-cbom
+# ECDAT - Enterprise Cryptographic Discovery & Analysis Tool
 
-ECDAT is a Cryptography Bill of Materials (CBOM) scanner for post-quantum
-readiness assessment. It discovers cryptographic artefacts in source code
-(RSA, ECC, DH, DSA, MD5, SHA-1, DES, 3DES, RC4, AES, and others), scores
-each one's post-quantum risk using Mosca's inequality, recommends NIST
-post-quantum replacements, and emits a real CycloneDX 1.6 CBOM alongside a
-dashboard-friendly risk summary.
+ECDAT is a Cryptography Bill of Materials (CBOM) scanner for post-quantum readiness assessment. It discovers cryptographic artefacts in source code, assesses their quantum-computing risk using Mosca's algorithm, and recommends NIST post-quantum replacements, outputting a CycloneDX 1.6 CBOM report.
 
-This package is the standalone scanner engine — a dependency-light library
-whose only runtime requirement is `pydantic>=2`. It runs from the command
-line or is imported directly; no FastAPI, Postgres, Redis, or Docker needed.
+## Running locally
 
-## Install
+### Prerequisites
 
-Published to PyPI — the fastest way to try the scanner is to install it and
-point it at a directory:
+- Docker with Docker Compose (Compose v2+).
+
+### Infrastructure + API + Dashboard
+
+From the repo root, build and start the whole stack:
 
 ```bash
-pip install ecdat-cbom
+docker compose up --build
 ```
 
-## CLI
+This brings up four services:
+
+| Service  | Image / source       | Purpose                                            |
+|----------|----------------------|----------------------------------------------------|
+| postgres | `postgres:16-alpine` | Persistent scan database (named volume `postgres_data`) |
+| redis    | `redis:7-alpine`     | Scan job status keys (`scan:{id}:status`)          |
+| api      | `backend/Dockerfile` | FastAPI app on `http://localhost:8000`, uvicorn with hot reload |
+| web      | `frontend/Dockerfile`| React dashboard at `http://localhost:5173`, nginx serves the build and reverse-proxies `/api` + `/health` to `api` |
+
+Database credentials are read from `.env` (copy `.env.example` to `.env` and
+adjust as needed). The compose file falls back to the same dev defaults, so a
+plain `docker compose up --build` works with no `.env` file at all.
+
+Smoke test — the API should answer immediately once the containers are up
+(either directly, or through the web container's proxy):
 
 ```bash
-# Scan a local directory:
-ecdat scan /path/to/repo
-
-# Scan a public Git repository (--git-url makes PATH a clone URL):
-ecdat scan https://github.com/example/project.git --git-url
+curl http://localhost:8000/health
+# {"status":"ok"}
+curl http://localhost:5173/health
+# {"status":"ok"}
 ```
 
-Writes `cbom.json` (CycloneDX 1.6 CBOM) and `summary.json` to the current
-directory, and prints a human-readable risk-level breakdown to stdout. The
-classic module invocation still works if you prefer it:
+The dashboard lives at `http://localhost:5173`. The `web` container keeps the
+frontend bundle's default same-origin `VITE_API_BASE_URL`: nginx serves the
+compiled static files and forwards `/api` + `/health` to the `api` service, so
+no runtime env substitution or CORS config is needed in the containerized flow.
 
-```bash
-python -m ecdat_core.cli scan /path/to/repo
-```
+Details:
 
-## Python API
+- On container start, the API entrypoint (`backend/docker-entrypoint.sh`)
+  runs `alembic upgrade head` against Postgres before launching uvicorn.
+- `./backend` is bind-mounted into the container and uvicorn runs with
+  `--reload`, so backend code edits take effect without rebuilding.
+- The `api` service waits for both `postgres` and `redis` to report healthy
+  (`depends_on.condition: service_healthy`); `web` waits for `api` to start.
 
-```python
-from ecdat_core.cli import run_scan
-from ecdat_core.cbom_export import export_cbom, export_summary
+Tear down with `docker compose down` (add `-v` to also delete the Postgres
+named volume).
 
-# Orchestrate the full pipeline: ingest → detect → assess → recommend.
-result = run_scan("/path/to/repo")
+## Live Deployment
 
-print(f"{result.files_scanned} files scanned, {len(result.detections)} detections")
+The project is deployed on Render's free tier.
 
-for risk in result.risk_assessments:
-    print(risk.detection_id, risk.risk_level, f"urgency={risk.urgency_ratio:.2f}")
+- **API**: [https://ecdat-api.onrender.com](https://ecdat-api.onrender.com)
+- **Dashboard**: [https://ecdat-web.onrender.com](https://ecdat-web.onrender.com)
 
-# Emit real CycloneDX 1.6 CBOM output (see "Output" below).
-cbom = export_cbom(result)         # CycloneDX 1.6 BOM dict
-summary = export_summary(result)   # risk-level rollup for dashboards
-```
+**Note on cold starts**: The API sleeps after 15 minutes of inactivity. The first request after sleep will take about a minute to respond while the service warms up. Please hit the `/health` endpoint once before starting the demo to ensure the app is responsive.
 
-`run_scan` also accepts `is_git_url=True` to shallow-clone and scan a public
-`https://` Git repository.
+## Securing a non-demo deployment (optional API-key auth)
 
-## Output — CycloneDX 1.6 CBOM
+By default ECDAT's API is fully open — anyone with the URL can submit scans and
+read everyone's scan history. That's intentional for the public hackathon demo.
+For anything resembling a real deployment, the API ships with a minimal
+single-tier gate: when enabled, every `/api/scans*` endpoint (writes *and*
+reads) requires an `Authorization: Bearer <key>` header. Full multi-tenant
+auth (users, orgs, roles) is deliberately not part of this mechanism.
 
-The CBOM is a real CycloneDX 1.6 BOM — not a custom format. Every
-cryptographic artefact is a component with `type: "cryptographic-asset"`,
-and the output validates against the official CycloneDX 1.6 JSON Schema
-(vendored in the scanner's test suite and enforced on every scan).
+1. **Generate one or more keys** out-of-band — never reuse committed values:
 
-Quantum-risk extensions live under the standard `properties` array with an
-`ecdat:` prefix (`ecdat:riskLevel`, `ecdat:quantumVulnerable`,
-`ecdat:classicallyBroken`, `ecdat:confidence`,
-`ecdat:recommendedAlgorithm`, `ecdat:fipsReference`), so existing CycloneDX
-tooling — Dependency-Track, Syft, Grype, and friends — parses the output
-without change.
+   ```bash
+   python -c "import secrets; print(secrets.token_urlsafe(32))"
+   ```
 
-## Why this is more than a hackathon prototype
+2. **Enable the gate** by setting two environment variables on the API:
 
-- **Real CycloneDX 1.6 output, validated against the official schema.** The
-  CBOM is not a lookalike JSON blob — it validates against the official
-  CycloneDX 1.6 JSON Schema (vendored, and enforced by the scanner's test
-  suite), so Dependency-Track, Syft, and other CycloneDX tooling parse it
-  unchanged.
-- **It distinguishes *classically broken* from *quantum vulnerable*.** The
-  common shortcut is to collapse "uses crypto" into a single quantum-risk
-  score. ECDAT reports two separate booleans: `classically_broken` (MD5,
-  SHA-1, DES, 3DES, RC4 — exploitable today, independent of quantum computers)
-  and `quantum_vulnerable` (RSA, ECC, DH, DSA — broken specifically by Shor's
-  algorithm). An actively broken hash is therefore never mislabeled
-  "quantum-safe".
-- **The security posture is documented, not implied.** SSRF controls on
-  Git-URL scanning, the local-path sandbox, the optional API-key gate, and
-  scan-creation rate limiting are described with their actual mechanisms in
-  [SECURITY.md](SECURITY.md).
+   - `REQUIRE_API_KEY=true`
+   - `API_KEYS=<comma-separated keys>` (whitespace around keys is fine)
 
-## Full project
+   Where to set them depends on the deployment:
 
-This package is the standalone scanner engine. The full ECDAT project — web
-dashboard, HTTP API, and Docker / Render deployment story — lives at
-<https://github.com/profm0r14rty/ecdat>.
+   - **Docker Compose** — add both to your `.env` (copied from
+     `.env.example`); the `api` service passes them through.
+   - **Render** — set both in the Web Service's **Environment** panel
+     (note: Render's env vars are separate from a local `.env` file) and
+     redeploy. Render's env changes apply on the next deploy — the gate reads
+     them per request, so no restart is needed once the new env is live.
 
-## License
+   The gate is **off by default**; with `REQUIRE_API_KEY` unset or `false`,
+   behavior is unchanged. If you enable it without setting `API_KEYS`, the API
+   fails closed (HTTP 500) rather than silently opening up.
 
-MIT — see <https://github.com/profm0r14rty/ecdat/blob/main/LICENSE>.
+3. **Clients** must send the key on every (non-`/health`) request:
+
+   ```bash
+   curl -H "Authorization: Bearer <key>" https://your-api/api/scans
+   ```
+
+   `GET /health` stays public so uptime monitors and warm-keeping pings keep
+   working.
+
+**Dashboard caveat**: the bundled dashboard is a public-demo artifact — its API
+client sends no auth header, so once you flip the gate on, the dashboard's
+`/api/scans` calls will be rejected (401). A non-demo deployment either uses
+API-keyed clients / CI pipelines, or terminates the key at a same-origin proxy.
+Key entry in the UI is intentionally out of scope for this gate.
