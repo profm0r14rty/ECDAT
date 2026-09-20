@@ -9,14 +9,44 @@ scanner engine) to their ``run()`` functions.
 from __future__ import annotations
 
 import argparse
+import sys
 
+from ecdat.cli.commands import about as about_command
+from ecdat.cli.commands import demo as demo_command
+from ecdat.cli.commands import doctor as doctor_command
+from ecdat.cli.commands import help_cmd as help_command
 from ecdat.cli.commands import scan as scan_command
+from ecdat.cli.commands import version_cmd as version_command
 
 # Command name -> command module.  Every module exposes ``register`` and
 # ``run(args) -> int``; ``run`` is looked up at call time so tests can patch it.
 COMMANDS: dict[str, object] = {
     scan_command.NAME: scan_command,
+    demo_command.NAME: demo_command,
+    help_command.NAME: help_command,
+    doctor_command.NAME: doctor_command,
+    about_command.NAME: about_command,
+    version_command.NAME: version_command,
 }
+
+
+class _VersionAction(argparse.Action):
+    """Print the full version line to stdout and exit ``0``.
+
+    Deliberately writes to stdout (argparse's built-in version action uses
+    stderr) so ``ecdat --version`` and ``ecdat version`` emit identical,
+    pipe-friendly payloads.  The version renderer is imported lazily so
+    importing this module never pulls in the signature knowledge base.
+    """
+
+    def __init__(self, option_strings, dest, **kwargs):
+        super().__init__(option_strings, dest, nargs=0, **kwargs)
+
+    def __call__(self, parser, namespace, values, option_string=None):
+        from ecdat.cli.commands.version_cmd import render_version
+
+        sys.stdout.write(render_version() + "\n")
+        parser.exit(0)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -35,8 +65,8 @@ def build_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--version",
-        action="store_true",
-        help="Show the ECDAT version and exit",
+        action=_VersionAction,
+        help="Show version info (engine, signatures, Python, OS) and exit",
     )
     parser.add_argument(
         "--no-color",
