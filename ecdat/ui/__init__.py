@@ -1,0 +1,1 @@
+"""UI sub-package — console factory, theme, renderers, and ASCII art."""
