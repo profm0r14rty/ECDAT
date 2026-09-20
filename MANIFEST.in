@@ -10,11 +10,12 @@
 
 include README.md
 include pyproject.toml
-include ecdat_core/README.md
+include PYPI_README.md
 
 # Ship tests + fixtures in the sdist only (standard practice; tests are not
 # part of the wheel).
 recursive-include ecdat_core/tests *
+recursive-include ecdat/tests *
 
 # Never ship the monorepo's non-published areas.
 prune backend
