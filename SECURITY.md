@@ -1,7 +1,7 @@
 # Security
 
 This document describes the security posture of ECDAT's scanner engine
-(`ecdat-cbom`) and its HTTP API. It covers mechanisms that are implemented and
+(`ecdat`) and its HTTP API. It covers mechanisms that are implemented and
 shipped. Nothing here is planned or aspirational: where a control is described,
 you can point at the code that enforces it.
 
@@ -9,9 +9,38 @@ you can point at the code that enforces it.
 
 The scanner ingests two classes of user-controlled input: Git repository URLs
 and local filesystem paths. Both can reach the network or the filesystem, so
-both are sandboxed by default. When the HTTP API is exposed to untrusted
-callers it also supports an optional API-key gate and per-client rate limiting
-on scan creation.
+both are sandboxed by default; the bundled CLI deliberately opts out of the
+local-path sandbox for user-owned paths (see "CLI trust model" below). When the
+HTTP API is exposed to untrusted callers it also supports an optional API-key
+gate and per-client rate limiting on scan creation.
+
+## CLI trust model
+
+The `ecdat` command-line interface is a local developer tool, and its trust
+model differs from the hosted API in one deliberate way: the person running the
+command is the trust boundary.
+
+- **Local scans are unsandboxed by design.** `ecdat scan <path>` and
+  `ecdat demo` call the engine with `sandboxed=False`, so they can scan any
+  directory the invoking user can already read. This is intentional — the CLI
+  runs with exactly the filesystem access of the user who started it, and
+  sandboxing a local path against its own owner would be security theatre. The
+  **HTTP API keeps its workspace sandbox** (`SCAN_WORKSPACE_ROOT`); only the
+  CLI/TUI opt out. This is a documented exemption, not a bypass.
+- **URL scans are still validated.** A Git URL is accepted only when it is
+  `https://` and passes the same SSRF checks as the API — scheme restriction,
+  private/reserved IP blocking, the optional host allowlist, and the clone size
+  ceiling (see "Git URL scanning — SSRF protections" below). The CLI never
+  disables this validation.
+- **Hostile repository content is escaped.** File paths, matched snippets, and
+  algorithm names from scanned repositories are untrusted. The CLI renderers
+  pass them through `rich.text.Text` (or escape them for HTML/Markdown) so they
+  cannot inject terminal escape sequences or markup. This behavior is covered
+  by `ecdat/tests/test_app_render.py`.
+- **No telemetry.** The CLI makes no network calls except `git clone` for an
+  explicit URL scan, and performs no update checks.
+- **Crash logs stay local.** Unexpected errors are recorded under
+  `ECDAT_HOME/logs` on the user's machine and are never uploaded.
 
 ## Git URL scanning — SSRF protections
 

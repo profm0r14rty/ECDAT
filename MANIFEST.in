@@ -11,6 +11,7 @@
 include README.md
 include pyproject.toml
 include PYPI_README.md
+include CHANGELOG.md
 
 # Ship tests + fixtures in the sdist only (standard practice; tests are not
 # part of the wheel).
