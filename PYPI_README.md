@@ -91,7 +91,7 @@ without change.
 - **The security posture is documented, not implied.** SSRF controls on
   Git-URL scanning, the local-path sandbox, the optional API-key gate, and
   scan-creation rate limiting are described with their actual mechanisms in
-  [SECURITY.md](SECURITY.md).
+  [SECURITY.md](https://github.com/profm0r14rty/ecdat/blob/main/SECURITY.md).
 
 ## Full project
 
