@@ -3,36 +3,46 @@ requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ecdat-cbom"
-version = "0.1.0"
-description = "Cryptography Bill of Materials (CBOM) scanner for post-quantum readiness assessment"
-readme = "ecdat_core/README.md"
-requires-python = ">=3.12"
+name = "ecdat"
+version = "0.2.0"
+description = "Cryptographic discovery and post-quantum readiness scanner — CLI with a gradient ASCII banner and an animated 3D globe (CBOM, CycloneDX 1.6)"
+readme = {file = "PYPI_README.md", content-type = "text/markdown"}
+requires-python = ">=3.10"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
     { name = "ECDAT Team" },
 ]
 keywords = [
-    "cryptography",
     "cbom",
+    "cli",
+    "cryptography",
+    "cyclonedx",
     "post-quantum",
     "pqc",
+    "quantum",
     "sbom",
-    "cyclonedx",
     "security",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
+    "Environment :: Console",
     "Intended Audience :: Developers",
     "Intended Audience :: Information Technology",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
     "Topic :: Security :: Cryptography",
     "Topic :: Software Development :: Quality Assurance",
 ]
 dependencies = [
     "pydantic>=2",
+    "rich>=13.7",
 ]
 
 [project.optional-dependencies]
@@ -48,18 +58,25 @@ dev = [
 Homepage = "https://github.com/profm0r14rty/ecdat"
 Repository = "https://github.com/profm0r14rty/ecdat"
 Issues = "https://github.com/profm0r14rty/ecdat/issues"
+Changelog = "https://github.com/profm0r14rty/ecdat/blob/main/CHANGELOG.md"
 
 [project.scripts]
-ecdat = "ecdat_core.cli:main"
+ecdat = "ecdat.cli:main"
+
+[tool.setuptools]
+include-package-data = false
 
 [tool.setuptools.packages.find]
-include = ["ecdat_core*"]
+include = ["ecdat*"]
+exclude = ["*.tests", "*.tests.*", "tests", "tests.*", "backend*", "frontend*"]
 
 [tool.setuptools.package-data]
 ecdat_core = ["signatures.json"]
+ecdat = ["py.typed", "demo_project/**/*"]
 
 [tool.pytest.ini_options]
 addopts = "-v -m 'not network'"
 markers = [
     "network: tests that require network access (explicitly opt-in)",
+    "packaging: builds the wheel and inspects it (slow)",
 ]

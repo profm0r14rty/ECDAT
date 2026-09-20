@@ -35,7 +35,12 @@ from ecdat_core.signature_loader import SignatureEntry, get_all_signatures
 _RISK_ORDER = ("critical", "high", "medium", "low", "quantum-safe")
 
 
-def run_scan(target: str, is_git_url: bool = False) -> ScanResult:
+def run_scan(
+    target: str,
+    is_git_url: bool = False,
+    *,
+    sandboxed: bool = True,
+) -> ScanResult:
     """Orchestrate a full ECDAT scan and return the assembled result.
 
     Args:
@@ -43,6 +48,14 @@ def run_scan(target: str, is_git_url: bool = False) -> ScanResult:
             ``is_git_url`` is ``True``.
         is_git_url: When ``True``, treat *target* as a Git URL to shallow
             clone before scanning.
+        sandboxed: When ``True`` (the default), a user-supplied local path is
+            enforced inside ``SCAN_WORKSPACE_ROOT`` by
+            :func:`~ecdat_core.ingestion.validate_local_path` — this is what
+            the FastAPI backend relies on, so the default must stay ``True``.
+            The pip-installed ``ecdat`` CLI passes ``sandboxed=False`` because
+            there the invoking user is the trust boundary.  Has no effect on
+            git-URL scans: the directory :func:`~ecdat_core.ingestion.ingest_git_url`
+            creates is always scanner-owned and therefore never sandboxed.
 
     Returns:
         A fully populated :class:`ScanResult` with detections, risk
@@ -56,11 +69,13 @@ def run_scan(target: str, is_git_url: bool = False) -> ScanResult:
         # exempt from the local-path sandbox.  The user-controlled git URL
         # itself has already passed validate_git_url inside ingest_git_url.
         local_path = ingest_git_url(target)
-        sandboxed = False
+        ingest_sandboxed = False
     else:
         scan_target = str(Path(target).resolve())
         local_path = target
-        sandboxed = True
+        # User-supplied path: honour the caller's sandbox policy.  Defaults to
+        # sandboxed so existing callers (including the backend) are unchanged.
+        ingest_sandboxed = sandboxed
 
     signatures = _signature_lookup()
 
@@ -68,7 +83,7 @@ def run_scan(target: str, is_git_url: bool = False) -> ScanResult:
     files_scanned = 0
 
     for file_path, content, language in ingest_local_directory(
-        local_path, sandboxed=sandboxed
+        local_path, sandboxed=ingest_sandboxed
     ):
         files_scanned += 1
         detections.extend(scan_file_content(file_path, content, language))
