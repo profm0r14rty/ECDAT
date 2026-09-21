@@ -2,9 +2,21 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 
 from ecdat.services.history import load_history
+
+NAME = "history"
+
+
+def register(subparsers: "argparse._SubParsersAction") -> None:
+    """Attach the ``history`` subcommand to *subparsers*."""
+    subparsers.add_parser(
+        "history",
+        help="Show scan history",
+        description="List the scans saved to the local ECDAT history store.",
+    )
 
 
 def run(args: object) -> int:

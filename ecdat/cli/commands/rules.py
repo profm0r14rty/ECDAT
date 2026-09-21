@@ -18,6 +18,7 @@ Note:
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from typing import Optional, Sequence
@@ -27,6 +28,41 @@ from rich.text import Text
 
 from ecdat.ui.theme import PALETTE, make_console
 from ecdat_core.signature_loader import SignatureEntry, get_all_signatures
+
+NAME = "rules"
+
+
+def register(subparsers: "argparse._SubParsersAction") -> None:
+    """Attach the ``rules`` subcommand to *subparsers*."""
+    parser = subparsers.add_parser(
+        "rules",
+        help="Browse the cryptographic signature knowledge base",
+        description=(
+            "List the detection signatures ECDAT ships with, optionally "
+            "filtered by a case-insensitive substring and/or family/language."
+        ),
+    )
+    parser.add_argument(
+        "query",
+        nargs="?",
+        default=None,
+        help="Case-insensitive substring over signature name/family",
+    )
+    parser.add_argument(
+        "--family",
+        default=None,
+        help="Only signatures whose family contains this value",
+    )
+    parser.add_argument(
+        "--language",
+        default=None,
+        help="Only signatures with detection patterns for this language",
+    )
+    parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the results as JSON on stdout",
+    )
 
 
 def _matches(

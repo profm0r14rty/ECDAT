@@ -1,10 +1,10 @@
-"""Frozen palette, risk metadata, Rich theme, and the console factory.
+"""Frozen palette, risk metadata, colour utilities, and the Rich theme.
 
 Colours are derived from the dashboard design tokens
 (``frontend/src/index.css``) and the shared risk palette
 (``frontend/src/lib/colors.ts``).  All values are immutable — the palette is a
-frozen dataclass and the module-level mappings are tuples/frozensets so nothing
-accidentally mutates shared state.
+frozen dataclass and the module-level mappings are tuples/dicts that nothing
+mutates.
 
 This module is the single source of colour truth for the app layer: renderers
 map their style tokens to these colours and never hardcode hex values.
@@ -13,20 +13,21 @@ Public API:
     - :data:`PALETTE` / :class:`Palette` — the frozen colour palette.
     - :data:`RISK_ORDER`, :data:`RISK_COLORS`, :data:`RISK_LABELS` — risk
       level metadata.
+    - :func:`hex_to_rgb`, :func:`rgb_to_hex`, :func:`lerp_hex`,
+      :func:`gradient` — colour maths.
     - :func:`rich_theme` — build the Rich :class:`~rich.theme.Theme`.
-    - :func:`make_console` — the sanctioned Rich :class:`Console` factory.
+    - :func:`make_console` / :func:`_ensure_utf8_streams` — thin re-exports of
+      the canonical console factory in :mod:`ecdat.ui.console` (kept here for
+      the commands that historically imported them from this module).
 """
 
 from __future__ import annotations
 
-import os
-import sys
 from dataclasses import dataclass
 from typing import Optional, Tuple
 
 from rich.console import Console
 from rich.theme import Theme
-
 
 # ---------------------------------------------------------------------------
 # Palette
@@ -127,6 +128,8 @@ def gradient(stops: list[str], steps: int) -> list[str]:
     """Return ``steps`` evenly-spaced colours interpolating through *stops*.
 
     The first colour is *stops[0]* and the last is *stops[-1]* exactly.
+    Interior stops are placed at evenly-spaced indices; linear interpolation
+    fills the gaps between them.
 
     Args:
         stops: Two or more hex-colour anchor points.
@@ -162,7 +165,7 @@ MINT_GRADIENT: list[str] = gradient(
 
 
 # ---------------------------------------------------------------------------
-# Rich theme + console factory
+# Rich theme
 # ---------------------------------------------------------------------------
 
 
@@ -172,7 +175,7 @@ def rich_theme() -> Theme:
     Style names use the ``ecdat.`` prefix so they never clash with Rich's
     built-in styles.  Usable as::
 
-        console = make_console()
+        console = Console(theme=rich_theme())
         console.print("[ecdat.accent]hi[/]")
     """
     return Theme(
@@ -189,22 +192,22 @@ def rich_theme() -> Theme:
     )
 
 
-def _ensure_utf8_streams() -> None:
-    """Reconfigure stdout/stderr to UTF-8 when possible (best-effort).
+# ---------------------------------------------------------------------------
+# Console factory re-exports
+#
+# The canonical implementation lives in :mod:`ecdat.ui.console` (it resolves
+# NO_COLOR / FORCE_COLOR and the colour system).  These wrappers keep the
+# historical ``ecdat.ui.theme.make_console`` import path working without
+# duplicating the logic; the import is deferred so theme.py stays importable
+# on its own (console.py imports :func:`rich_theme` from here).
+# ---------------------------------------------------------------------------
 
-    Keeps box-drawing and timeline glyphs renderable on terminals whose default
-    encoding is a legacy code page.  Never raises.
-    """
-    for stream in (sys.stdout, sys.stderr):
-        try:
-            reconf = getattr(stream, "reconfigure", None)
-            if reconf is None:
-                continue
-            current_enc = getattr(stream, "encoding", None)
-            if current_enc is not None and current_enc.lower() not in ("utf-8", "utf8"):
-                reconf(encoding="utf-8", errors="replace")
-        except Exception:  # noqa: BLE001 - encoding fix is best-effort
-            pass
+
+def _ensure_utf8_streams() -> None:
+    """Reconfigure stdout/stderr to UTF-8 when possible (best-effort)."""
+    from ecdat.ui.console import _ensure_utf8_streams as _impl
+
+    _impl()
 
 
 def make_console(
@@ -215,27 +218,11 @@ def make_console(
 ) -> Console:
     """Create a themed Rich :class:`~rich.console.Console`.
 
-    This is the sanctioned console factory for the app layer — commands should
-    construct consoles through it rather than calling :class:`Console` directly,
-    so the palette theme and ``NO_COLOR`` handling are applied consistently.
-
-    Args:
-        stderr: Write to stderr instead of stdout (default: stdout).
-        no_color: Force colour off (``True``), on (``False``), or auto-detect
-            (``None``).  The ``NO_COLOR`` env var is honoured by Rich.
-        width: Force a terminal width in cells (``None`` = auto-detect).
-
-    Returns:
-        A configured :class:`~rich.console.Console`.
+    Thin re-export of :func:`ecdat.ui.console.make_console`.
     """
-    _ensure_utf8_streams()
-    return Console(
-        stderr=stderr,
-        theme=rich_theme(),
-        no_color=no_color,
-        width=width,
-        highlight=False,
-    )
+    from ecdat.ui.console import make_console as _impl
+
+    return _impl(stderr=stderr, no_color=no_color, width=width)
 
 
 __all__ = [

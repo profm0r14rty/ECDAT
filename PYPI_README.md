@@ -1,104 +1,104 @@
-# ecdat-cbom
+# ecdat
 
-ECDAT is a Cryptography Bill of Materials (CBOM) scanner for post-quantum
-readiness assessment. It discovers cryptographic artefacts in source code
-(RSA, ECC, DH, DSA, MD5, SHA-1, DES, 3DES, RC4, AES, and others), scores
-each one's post-quantum risk using Mosca's inequality, recommends NIST
-post-quantum replacements, and emits a real CycloneDX 1.6 CBOM alongside a
-dashboard-friendly risk summary.
+**ECDAT** is a [CycloneDX](https://cyclonedx.org/) **Cryptography Bill of
+Materials (CBOM) scanner for post-quantum readiness**. One command finds the
+cryptographic artefacts in a codebase — RSA, ECC, DH, DSA, MD5, SHA-1, DES,
+3DES, RC4, AES, and others — scores each one's post-quantum risk with Mosca's
+inequality, recommends NIST post-quantum replacements, and emits a real
+CycloneDX 1.6 CBOM next to a dashboard-friendly risk summary.
 
-This package is the standalone scanner engine — a dependency-light library
-whose only runtime requirement is `pydantic>=2`. It runs from the command
-line or is imported directly; no FastAPI, Postgres, Redis, or Docker needed.
+It is a small, self-contained Python package (runtime dependencies: `pydantic`
+and `rich`) — no FastAPI, Postgres, Redis, or Docker required. It runs fully
+offline: the only network access is `git clone` for an explicit URL scan.
+
+Why it is more than a lookalike scanner:
+
+- **Real CBOM output.** The report is genuine CycloneDX 1.6, validated against
+  the official JSON Schema on every scan in the test suite, so Dependency-Track,
+  Syft, Grype, and other CycloneDX tooling parse it unchanged.
+- **"Classically broken" is not "quantum vulnerable".** MD5, SHA-1, DES, 3DES,
+  and RC4 are reported as broken *today*; RSA, ECC, DH, and DSA as broken *by
+  Shor's algorithm*. An actively exploitable hash is never mislabeled
+  "quantum-safe".
+- **Offline and private.** No telemetry, no update checks.
+- **Crash-safe.** Expected errors print a clear message and exit code;
+  unexpected errors are written to a local crash log instead of a raw
+  traceback.
 
 ## Install
 
-Published to PyPI — the fastest way to try the scanner is to install it and
-point it at a directory:
+```bash
+pipx install ecdat        # recommended: isolated and on PATH
+uv tool install ecdat     # recommended if you use uv
+pip install ecdat         # into the active Python environment
+```
+
+If plain `pip` reports `externally-managed-environment`, that is
+[PEP 668](https://peps.python.org/pep-0668/) protecting your OS Python — use
+`pipx` or `uv tool` (or a virtualenv) instead of forcing the install. On
+Windows, install with `py -m pip install ecdat`; if `ecdat` is not on `PATH`,
+run the CLI as `py -m ecdat …`.
+
+## 60-second tour
 
 ```bash
-pip install ecdat-cbom
+ecdat demo                                   # scan the bundled sample project
+ecdat scan .                                 # scan the current directory
+ecdat scan https://github.com/<user>/<repo>  # scan a public https:// repo
+ecdat about                                  # credits and an animated 3D globe
+ecdat doctor                                 # check your environment
 ```
 
-## CLI
+## Commands
 
-```bash
-# Scan a local directory:
-ecdat scan /path/to/repo
+| Command | Description |
+|---------|-------------|
+| `ecdat scan <path-or-url>` | Scan a local directory, or an `https://` Git repository |
+| `ecdat demo` | Scan the bundled, deliberately-insecure sample project (zero setup) |
+| `ecdat doctor` | Environment self-check with a one-line fix per problem |
+| `ecdat about` | Credits, project links, and a spinning 3D globe |
+| `ecdat help [command]` | Command overview, or full help for one command |
+| `ecdat version` | Version, engine, signature count, Python, and OS |
 
-# Scan a public Git repository (--git-url makes PATH a clone URL):
-ecdat scan https://github.com/example/project.git --git-url
-```
+Global flags: `--version`, `--no-color`, and `--debug`.
 
-Writes `cbom.json` (CycloneDX 1.6 CBOM) and `summary.json` to the current
-directory, and prints a human-readable risk-level breakdown to stdout. The
-classic module invocation still works if you prefer it:
+## Formats
 
-```bash
-python -m ecdat_core.cli scan /path/to/repo
-```
+`ecdat scan --format <pretty|json|cbom|summary>`:
 
-## Python API
+| Format | Contents |
+|--------|----------|
+| `pretty` | Colourised terminal report (default) |
+| `json` | The full `ScanResult` |
+| `cbom` | A CycloneDX 1.6 CBOM |
+| `summary` | The risk rollup used by dashboards |
 
-```python
-from ecdat_core.cli import run_scan
-from ecdat_core.cbom_export import export_cbom, export_summary
+Payload formats write **only** the payload to stdout; progress, warnings, and
+errors go to stderr — so `ecdat scan . -f cbom > cbom.json` is safe to pipe.
+`ecdat demo` supports `pretty`, `json`, and `summary`.
 
-# Orchestrate the full pipeline: ingest → detect → assess → recommend.
-result = run_scan("/path/to/repo")
+For CI, `ecdat scan . --fail-on high` exits `1` when a finding is at or above
+that level (`quantum-safe` findings never count) and `0` when clean. The other
+exit codes are `2` (usage/validation error), `3` (scan/runtime/unexpected
+error), and `130` (interrupted with `Ctrl-C`).
 
-print(f"{result.files_scanned} files scanned, {len(result.detections)} detections")
+## Guarantees
 
-for risk in result.risk_assessments:
-    print(risk.detection_id, risk.risk_level, f"urgency={risk.urgency_ratio:.2f}")
+- **Offline by default.** Only `git clone` for an explicit `https://` URL scan
+  touches the network; local scans never do.
+- **No telemetry and no update checks.**
+- **Injection-safe rendering.** File paths, matched snippets, and algorithm
+  names from scanned (untrusted) code are rendered as plain text and cannot
+  inject terminal escapes or Rich/HTML/Markdown markup.
+- **Validated Git-URL scanning.** Only `https://` URLs are cloned, and the host
+  is resolved and checked against private/reserved address ranges before any
+  clone runs.
 
-# Emit real CycloneDX 1.6 CBOM output (see "Output" below).
-cbom = export_cbom(result)         # CycloneDX 1.6 BOM dict
-summary = export_summary(result)   # risk-level rollup for dashboards
-```
+## Links
 
-`run_scan` also accepts `is_git_url=True` to shallow-clone and scan a public
-`https://` Git repository.
-
-## Output — CycloneDX 1.6 CBOM
-
-The CBOM is a real CycloneDX 1.6 BOM — not a custom format. Every
-cryptographic artefact is a component with `type: "cryptographic-asset"`,
-and the output validates against the official CycloneDX 1.6 JSON Schema
-(vendored in the scanner's test suite and enforced on every scan).
-
-Quantum-risk extensions live under the standard `properties` array with an
-`ecdat:` prefix (`ecdat:riskLevel`, `ecdat:quantumVulnerable`,
-`ecdat:classicallyBroken`, `ecdat:confidence`,
-`ecdat:recommendedAlgorithm`, `ecdat:fipsReference`), so existing CycloneDX
-tooling — Dependency-Track, Syft, Grype, and friends — parses the output
-without change.
-
-## Why this is more than a hackathon prototype
-
-- **Real CycloneDX 1.6 output, validated against the official schema.** The
-  CBOM is not a lookalike JSON blob — it validates against the official
-  CycloneDX 1.6 JSON Schema (vendored, and enforced by the scanner's test
-  suite), so Dependency-Track, Syft, and other CycloneDX tooling parse it
-  unchanged.
-- **It distinguishes *classically broken* from *quantum vulnerable*.** The
-  common shortcut is to collapse "uses crypto" into a single quantum-risk
-  score. ECDAT reports two separate booleans: `classically_broken` (MD5,
-  SHA-1, DES, 3DES, RC4 — exploitable today, independent of quantum computers)
-  and `quantum_vulnerable` (RSA, ECC, DH, DSA — broken specifically by Shor's
-  algorithm). An actively broken hash is therefore never mislabeled
-  "quantum-safe".
-- **The security posture is documented, not implied.** SSRF controls on
-  Git-URL scanning, the local-path sandbox, the optional API-key gate, and
-  scan-creation rate limiting are described with their actual mechanisms in
-  [SECURITY.md](SECURITY.md).
-
-## Full project
-
-This package is the standalone scanner engine. The full ECDAT project — web
-dashboard, HTTP API, and Docker / Render deployment story — lives at
-<https://github.com/profm0r14rty/ecdat>.
-
-## License
-
-MIT — see <https://github.com/profm0r14rty/ecdat/blob/main/LICENSE>.
+- Source, issues, and documentation: <https://github.com/profm0r14rty/ecdat>
+- Security policy: <https://github.com/profm0r14rty/ecdat/blob/main/SECURITY.md>
+- Changelog: <https://github.com/profm0r14rty/ecdat/blob/main/CHANGELOG.md>
+- Live demo dashboard: <https://ecdat-web.onrender.com>
+- Live demo API: <https://ecdat-api.onrender.com>
+- License (MIT): <https://github.com/profm0r14rty/ecdat/blob/main/LICENSE>

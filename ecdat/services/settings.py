@@ -28,6 +28,7 @@ from ecdat.services.paths import settings_file
 _DEFAULT_MIGRATION_YEARS = 5.0
 _DEFAULT_SHELF_LIFE_YEARS = 10.0
 _DEFAULT_THREAT_HORIZON_YEARS = 10.0
+_DEFAULT_THEME = "ecdat-dark"
 
 # ---------------------------------------------------------------------------
 # Model
@@ -42,11 +43,17 @@ class AppSettings:
         migration_time_years: Default migration time (X in Mosca).
         shelf_life_years: Default data shelf-life (Y in Mosca).
         threat_horizon_years: Default quantum threat horizon (Z in Mosca).
+        theme: Preferred TUI theme name (e.g. ``"ecdat-dark"``).
+        reduce_motion: Disable animations regardless of the environment.
+        splash: Show the decrypt-reveal splash screen on TUI start.
     """
 
     migration_time_years: float = _DEFAULT_MIGRATION_YEARS
     shelf_life_years: float = _DEFAULT_SHELF_LIFE_YEARS
     threat_horizon_years: float = _DEFAULT_THREAT_HORIZON_YEARS
+    theme: str = _DEFAULT_THEME
+    reduce_motion: bool = False
+    splash: bool = True
 
 
 # ---------------------------------------------------------------------------
@@ -58,7 +65,8 @@ def load_settings() -> AppSettings:
     """Load settings from disk, returning defaults when the file does not exist.
 
     Corrupt or unparseable files are silently replaced with defaults (the
-    on-disk file is NOT mutated).
+    on-disk file is NOT mutated).  Unknown keys are ignored and a wrong-typed
+    value falls back to that field's default without discarding the rest.
 
     Returns:
         An :class:`AppSettings` instance.
@@ -72,17 +80,44 @@ def load_settings() -> AppSettings:
     except (json.JSONDecodeError, OSError):
         return AppSettings()
 
+    if not isinstance(data, dict):
+        return AppSettings()
+
     return AppSettings(
-        migration_time_years=float(
-            data.get("migration_time_years", _DEFAULT_MIGRATION_YEARS)
+        migration_time_years=_as_float(
+            data.get("migration_time_years"), _DEFAULT_MIGRATION_YEARS
         ),
-        shelf_life_years=float(
-            data.get("shelf_life_years", _DEFAULT_SHELF_LIFE_YEARS)
+        shelf_life_years=_as_float(
+            data.get("shelf_life_years"), _DEFAULT_SHELF_LIFE_YEARS
         ),
-        threat_horizon_years=float(
-            data.get("threat_horizon_years", _DEFAULT_THREAT_HORIZON_YEARS)
+        threat_horizon_years=_as_float(
+            data.get("threat_horizon_years"), _DEFAULT_THREAT_HORIZON_YEARS
         ),
+        theme=_as_str(data.get("theme"), _DEFAULT_THEME),
+        reduce_motion=_as_bool(data.get("reduce_motion"), False),
+        splash=_as_bool(data.get("splash"), True),
     )
+
+
+def _as_float(value: object, default: float) -> float:
+    """Return *value* as a float, or *default* when it is not numeric."""
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return default
+    return float(value)
+
+
+def _as_str(value: object, default: str) -> str:
+    """Return *value* as a non-empty string, or *default* otherwise."""
+    if isinstance(value, str) and value.strip():
+        return value
+    return default
+
+
+def _as_bool(value: object, default: bool) -> bool:
+    """Return *value* as a bool, or *default* when it is not a bool."""
+    if isinstance(value, bool):
+        return value
+    return default
 
 
 def save_settings(settings: AppSettings) -> None:
@@ -104,6 +139,9 @@ def save_settings(settings: AppSettings) -> None:
         "migration_time_years": settings.migration_time_years,
         "shelf_life_years": settings.shelf_life_years,
         "threat_horizon_years": settings.threat_horizon_years,
+        "theme": settings.theme,
+        "reduce_motion": settings.reduce_motion,
+        "splash": settings.splash,
     }
 
     # Atomic write: write to a temp file, then rename.
@@ -122,3 +160,19 @@ def save_settings(settings: AppSettings) -> None:
         except OSError:
             pass
         raise
+
+
+def try_save_settings(settings: AppSettings) -> bool:
+    """Save *settings* without raising.
+
+    The UI must never crash because a settings write failed, so this wraps
+    :func:`save_settings` and reports success as a boolean.
+
+    Returns:
+        ``True`` when the settings were persisted.
+    """
+    try:
+        save_settings(settings)
+    except OSError:
+        return False
+    return True

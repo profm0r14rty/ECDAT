@@ -17,6 +17,7 @@ Note:
 
 from __future__ import annotations
 
+import argparse
 import difflib
 from typing import List
 
@@ -25,6 +26,25 @@ from rich.text import Text
 
 from ecdat.ui.theme import PALETTE, make_console
 from ecdat_core.signature_loader import SignatureEntry, get_all_signatures
+
+NAME = "explain"
+
+
+def register(subparsers: "argparse._SubParsersAction") -> None:
+    """Attach the ``explain`` subcommand to *subparsers*."""
+    parser = subparsers.add_parser(
+        "explain",
+        help="Explain an algorithm in plain English",
+        description=(
+            "Explain a signature by name or family: what it is, its quantum "
+            "status, how Mosca's inequality scores it, and what replaces it."
+        ),
+    )
+    parser.add_argument(
+        "name",
+        help="Signature name or family to explain (case-insensitive)",
+    )
+
 
 # One-paragraph, static explanation of the scoring model.  Kept as a module
 # constant so the wording is consistent across every explained algorithm.

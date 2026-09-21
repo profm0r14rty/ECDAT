@@ -1,1 +1,1 @@
-"""ECDAT services — scanner, history, exporters, paths, settings."""
+"""ECDAT app-layer services — scanner, viewmodel, history, exporters, demo, paths, settings."""

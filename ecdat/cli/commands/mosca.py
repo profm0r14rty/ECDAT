@@ -17,6 +17,7 @@ Exit codes:
 
 from __future__ import annotations
 
+import argparse
 import sys
 from typing import Optional
 
@@ -27,6 +28,45 @@ from rich.text import Text
 from ecdat.ui.render import mosca_timeline
 from ecdat.ui.theme import PALETTE, RISK_COLORS, RISK_LABELS, make_console
 from ecdat_core.risk_engine import classify_urgency
+
+NAME = "mosca"
+
+
+def register(subparsers: "argparse._SubParsersAction") -> None:
+    """Attach the ``mosca`` subcommand to *subparsers*."""
+    parser = subparsers.add_parser(
+        "mosca",
+        help="Mosca's-inequality calculator with a visual timeline",
+        description=(
+            "Compute the Mosca urgency ratio (X + Y) / Z from a data "
+            "lifetime (X), migration time (Y) and quantum horizon (Z) and "
+            "draw the exposure timeline."
+        ),
+    )
+    parser.add_argument(
+        "-x",
+        "--shelf-life",
+        type=float,
+        default=None,
+        dest="x",
+        help="X — data lifetime in years (data must stay secret)",
+    )
+    parser.add_argument(
+        "-y",
+        "--migration",
+        type=float,
+        default=None,
+        dest="y",
+        help="Y — migration time in years",
+    )
+    parser.add_argument(
+        "-z",
+        "--threat",
+        type=float,
+        default=None,
+        dest="z",
+        help="Z — quantum threat horizon in years",
+    )
 
 
 def _is_interactive() -> bool:

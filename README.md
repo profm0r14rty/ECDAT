@@ -2,6 +2,92 @@
 
 ECDAT is a Cryptography Bill of Materials (CBOM) scanner for post-quantum readiness assessment. It discovers cryptographic artefacts in source code, assesses their quantum-computing risk using Mosca's algorithm, and recommends NIST post-quantum replacements, outputting a CycloneDX 1.6 CBOM report.
 
+## Install the CLI
+
+The `ecdat` command is a standalone, pip-installable scanner — no Docker,
+Postgres, Redis, or API required. It runs fully offline; see
+[Privacy and trust](#privacy-and-trust).
+
+```bash
+pipx install ecdat        # recommended: isolated and on PATH
+uv tool install ecdat     # recommended if you use uv
+pip install ecdat         # into the active Python environment
+```
+
+If `pip install` stops with `error: externally-managed-environment`, that is
+[PEP 668](https://peps.python.org/pep-0668/) protecting your OS Python — use
+`pipx` or `uv tool` (or a virtualenv) rather than forcing the install. On
+Windows, install with `py -m pip install ecdat`; if `ecdat` is not on `PATH`,
+run the CLI as `py -m ecdat …`.
+
+Upgrade or remove it later:
+
+```bash
+pipx upgrade ecdat           # or: uv tool upgrade ecdat
+pip install --upgrade ecdat
+pipx uninstall ecdat         # or: uv tool uninstall ecdat
+```
+
+### 60-second tour
+
+```bash
+ecdat demo                                   # scan the bundled sample project
+ecdat about                                  # credits and an animated 3D globe
+ecdat scan .                                 # scan the current directory
+ecdat scan https://github.com/<user>/<repo>  # scan a public https:// repo
+ecdat help                                   # list every command
+ecdat doctor                                 # check your environment
+```
+
+<!-- screenshots: docs/img/*.png -->
+
+### Commands
+
+| Command | What it does |
+|---------|--------------|
+| `ecdat scan <path-or-url>` | Scan a local directory, or an `https://` Git repository |
+| `ecdat demo` | Scan the bundled, deliberately-insecure sample project (zero setup) |
+| `ecdat doctor` | Environment self-check (Python, git, signatures, `ECDAT_HOME`) |
+| `ecdat about` | Credits, project links, and a spinning 3D globe |
+| `ecdat help [command]` | Command overview, or full help for one command |
+| `ecdat version` | Version, engine, signature count, Python, and OS |
+
+Global flags: `--version`, `--no-color`, `--debug`.
+
+### Output formats
+
+`ecdat scan --format <pretty|json|cbom|summary>`:
+
+- `pretty` (default) — the colourised terminal report.
+- `json` — the full `ScanResult`.
+- `cbom` — a CycloneDX 1.6 CBOM.
+- `summary` — the risk rollup used by dashboards.
+
+Payload formats write **only** the payload to stdout; progress, warnings, and
+errors go to stderr. That keeps `ecdat scan . -f cbom > cbom.json` safe to
+pipe. `ecdat demo` supports `pretty`, `json`, and `summary`.
+
+### Use in CI
+
+```bash
+ecdat scan . --fail-on high
+```
+
+`--fail-on <critical|high|medium|low>` returns exit code `1` when any finding
+is at or above that level (`quantum-safe` findings never count). Exit codes:
+`0` success · `1` findings at or above `--fail-on` · `2` usage/validation
+error · `3` scan/runtime/unexpected error · `130` interrupted (`Ctrl-C`).
+
+### Privacy and trust
+
+- **Runs fully offline.** The only network access is `git clone` for an
+  explicit `https://` URL scan; local scans never touch the network.
+- **No telemetry, no update checks.**
+- **Hostile repo content cannot inject escapes or markup.** File paths,
+  snippets, and algorithm names from scanned repositories are attacker-
+  controlled; the CLI renders them as plain text, never as Rich/HTML/Markdown
+  markup. Covered by `ecdat/tests/test_app_render.py`.
+
 ## Running locally
 
 ### Prerequisites

@@ -1,0 +1,78 @@
+/* ECDAT TUI — base stylesheet.
+   Colours come from the active Textual theme (registered in ecdat/tui/theme.py);
+   risk colours are exposed as $risk-critical … $risk-safe. */
+
+Screen {
+    background: $background;
+    color: $foreground;
+}
+
+Header {
+    background: $panel;
+    color: $foreground;
+}
+
+Footer {
+    background: $panel;
+    color: $foreground;
+}
+
+.panel {
+    border: round $primary;
+    padding: 0 1;
+    background: $surface;
+}
+
+.muted {
+    color: $foreground-muted;
+}
+
+.accent {
+    color: $accent;
+}
+
+.risk-critical {
+    color: $risk-critical;
+}
+
+.risk-high {
+    color: $risk-high;
+}
+
+.risk-medium {
+    color: $risk-medium;
+}
+
+.risk-low {
+    color: $risk-low;
+}
+
+.risk-safe {
+    color: $risk-safe;
+}
+
+ArtView {
+    width: 100%;
+    height: 100%;
+}
+
+BannerWidget {
+    width: auto;
+    height: auto;
+}
+
+SplashScreen {
+    align: center middle;
+    background: $background;
+}
+
+#splash-art {
+    width: auto;
+    height: auto;
+}
+
+#splash-tagline {
+    width: auto;
+    height: auto;
+    padding: 1 0 0 0;
+}

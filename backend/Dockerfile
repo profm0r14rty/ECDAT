@@ -31,7 +31,7 @@ WORKDIR /app
 # --- scanner engine (ecdat_core) -------------------------------------------
 # Root pyproject.toml builds the `ecdat-core` package; signatures.json is
 # shipped as package data and loaded relative to the module file.
-COPY pyproject.toml ./
+COPY pyproject.toml PYPI_README.md ./
 COPY ecdat_core/ ecdat_core/
 RUN pip install .
 

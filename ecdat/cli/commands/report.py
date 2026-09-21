@@ -2,10 +2,34 @@
 
 from __future__ import annotations
 
+import argparse
 import sys
 
 from ecdat.services.exporters import export_html, export_markdown
 from ecdat.services.history import get_by_id, get_latest
+
+NAME = "report"
+
+
+def register(subparsers: "argparse._SubParsersAction") -> None:
+    """Attach the ``report`` subcommand to *subparsers*."""
+    parser = subparsers.add_parser(
+        "report",
+        help="Show a report for a scan",
+        description="Re-render a saved scan as Markdown or HTML.",
+    )
+    parser.add_argument(
+        "scan_ref",
+        help="'latest' or a scan ID",
+    )
+    parser.add_argument(
+        "-f",
+        "--format",
+        choices=["markdown", "html"],
+        default="markdown",
+        dest="format",
+        help="Output format (default: markdown)",
+    )
 
 
 def run(args: object) -> int:
