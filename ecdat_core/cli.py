@@ -19,7 +19,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 import sys
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from uuid import uuid4
@@ -28,6 +30,12 @@ from ecdat_core.cbom_export import export_cbom, export_summary
 from ecdat_core.detector import scan_file_content
 from ecdat_core.ingestion import ingest_git_url, ingest_local_directory
 from ecdat_core.models import Detection, ScanResult
+from ecdat_core.progress import (
+    ProgressCallback,
+    ScanCancelled,
+    ScanProgress,
+    ScanStage,
+)
 from ecdat_core.recommender import recommend
 from ecdat_core.risk_engine import assess_risk
 from ecdat_core.signature_loader import SignatureEntry, get_all_signatures
@@ -35,7 +43,13 @@ from ecdat_core.signature_loader import SignatureEntry, get_all_signatures
 _RISK_ORDER = ("critical", "high", "medium", "low", "quantum-safe")
 
 
-def run_scan(target: str, is_git_url: bool = False) -> ScanResult:
+def run_scan(
+    target: str,
+    is_git_url: bool = False,
+    *,
+    on_progress: ProgressCallback | None = None,
+    exclude: Sequence[str] = (),
+) -> ScanResult:
     """Orchestrate a full ECDAT scan and return the assembled result.
 
     Args:
@@ -43,70 +57,124 @@ def run_scan(target: str, is_git_url: bool = False) -> ScanResult:
             ``is_git_url`` is ``True``.
         is_git_url: When ``True``, treat *target* as a Git URL to shallow
             clone before scanning.
+        on_progress: Optional callback receiving :class:`ScanProgress`
+            snapshots at each pipeline stage.  Raising :class:`ScanCancelled`
+            inside the callback aborts the scan cleanly.  Callback exceptions
+            other than ``ScanCancelled`` propagate unchanged.
+        exclude: ``fnmatch`` glob patterns passed through to
+            :func:`ingest_local_directory`.
 
     Returns:
         A fully populated :class:`ScanResult` with detections, risk
-        assessments, and recommendations for every cryptographic artefact
-        discovered, plus a ``files_scanned`` count.
+        assessments, and recommendations.
+
+    Raises:
+        ScanCancelled: When the caller's callback raises it.
     """
-    if is_git_url:
-        scan_target = target
-        # The cloned directory below is scanner-created (tempfile.mkdtemp,
-        # mode 0700, ephemeral) — not a user-supplied path — so scanning it is
-        # exempt from the local-path sandbox.  The user-controlled git URL
-        # itself has already passed validate_git_url inside ingest_git_url.
-        local_path = ingest_git_url(target)
-        sandboxed = False
-    else:
-        scan_target = str(Path(target).resolve())
-        local_path = target
-        sandboxed = True
+    clone_dir: str | None = None
 
-    signatures = _signature_lookup()
+    def _emit(stage: ScanStage, message: str = "", current: int = 0,
+              total: int | None = None, detections: int = 0) -> None:
+        if on_progress is None:
+            return
+        on_progress(ScanProgress(
+            stage=stage,
+            message=message,
+            current=current,
+            total=total,
+            detections=detections,
+        ))
 
-    detections: list[Detection] = []
-    files_scanned = 0
+    try:
+        # --- clone -----------------------------------------------------
+        if is_git_url:
+            scan_target = target
+            _emit("clone", f"Cloning {target}")
+            clone_dir = ingest_git_url(target)
+            local_path = clone_dir
+            sandboxed = False
+            _emit("clone", f"Cloned {target}", 1, 1)
+        else:
+            scan_target = str(Path(target).resolve())
+            local_path = target
+            sandboxed = True
 
-    for file_path, content, language in ingest_local_directory(
-        local_path, sandboxed=sandboxed
-    ):
-        files_scanned += 1
-        detections.extend(scan_file_content(file_path, content, language))
+        signatures = _signature_lookup()
 
-    return _assemble(scan_target, detections, signatures, files_scanned)
+        # --- ingest ----------------------------------------------------
+        _emit("ingest", "Walking directory tree...")
+        detections: list[Detection] = []
+        files_scanned = 0
+
+        # First pass: count files (optional total for detect stage).
+        file_list: list[tuple[str, str, str]] = []
+        for file_path, content, language in ingest_local_directory(
+            local_path, sandboxed=sandboxed, exclude=exclude
+        ):
+            file_list.append((file_path, content, language))
+
+        total_files = len(file_list) or None
+        _emit("ingest", f"Directory walk complete: {len(file_list)} files", len(file_list), total_files)
+
+        # --- detect ----------------------------------------------------
+        _emit("detect", "Scanning files for crypto artefacts...",
+              current=0, total=total_files, detections=0)
+        for idx, (file_path, content, language) in enumerate(file_list, start=1):
+            files_scanned = idx
+            new_dets = scan_file_content(file_path, content, language)
+            detections.extend(new_dets)
+            _emit("detect", f"Scanning: {file_path}",
+                  current=idx, total=total_files, detections=len(detections))
+        _emit("detect", "Detection complete",
+              current=files_scanned, total=total_files, detections=len(detections))
+
+        # --- assess ----------------------------------------------------
+        total_dets = len(detections) or None
+        _emit("assess", "Assessing risk...",
+              current=0, total=total_dets, detections=len(detections))
+        risk_assessments = []
+        recommendations = []
+        for i, detection in enumerate(detections, start=1):
+            entry = signatures.get(detection.algorithm_family)
+            if entry is None:
+                continue
+            risk_assessments.append(assess_risk(detection, entry))
+            recommendations.append(recommend(detection, entry))
+            _emit("assess", f"Assessed: {detection.algorithm_family}",
+                  current=i, total=total_dets, detections=len(detections))
+
+        # --- recommend -------------------------------------------------
+        _emit("recommend", "Generating recommendations...",
+              current=0, total=total_dets, detections=len(detections))
+        _emit("recommend", "Recommendations complete",
+              current=total_dets, total=total_dets, detections=len(detections))
+
+        # --- assemble --------------------------------------------------
+        _emit("assemble", "Assembling result...", detections=len(detections))
+        result = ScanResult(
+            scan_id=str(uuid4()),
+            target=scan_target,
+            detections=detections,
+            risk_assessments=risk_assessments,
+            recommendations=recommendations,
+            scanned_at=datetime.now(timezone.utc).isoformat(),
+            files_scanned=files_scanned,
+        )
+        _emit("done", "Scan complete", total=files_scanned,
+              detections=len(detections))
+
+    except ScanCancelled:
+        raise
+    finally:
+        if clone_dir is not None:
+            shutil.rmtree(clone_dir, ignore_errors=True)
+
+    return result
 
 
 def _signature_lookup() -> dict[str, SignatureEntry]:
     """Return a map of signature name -> entry for fast lookups."""
     return {entry.name: entry for entry in get_all_signatures()}
-
-
-def _assemble(
-    target: str,
-    detections: list[Detection],
-    signatures: dict[str, SignatureEntry],
-    files_scanned: int,
-) -> ScanResult:
-    """Assess risk, recommend, and package everything into a ScanResult."""
-    risk_assessments = []
-    recommendations = []
-
-    for detection in detections:
-        entry = signatures.get(detection.algorithm_family)
-        if entry is None:
-            continue
-        risk_assessments.append(assess_risk(detection, entry))
-        recommendations.append(recommend(detection, entry))
-
-    return ScanResult(
-        scan_id=str(uuid4()),
-        target=target,
-        detections=detections,
-        risk_assessments=risk_assessments,
-        recommendations=recommendations,
-        scanned_at=datetime.now(timezone.utc).isoformat(),
-        files_scanned=files_scanned,
-    )
 
 
 def main(argv: list[str] | None = None) -> int:
