@@ -33,6 +33,7 @@ classifiers = [
 ]
 dependencies = [
     "pydantic>=2",
+    "rich>=13",
 ]
 
 [project.optional-dependencies]
@@ -50,10 +51,10 @@ Repository = "https://github.com/profm0r14rty/ecdat"
 Issues = "https://github.com/profm0r14rty/ecdat/issues"
 
 [project.scripts]
-ecdat = "ecdat_core.cli:main"
+ecdat = "ecdat.cli.main:main"
 
 [tool.setuptools.packages.find]
-include = ["ecdat_core*"]
+include = ["ecdat_core*", "ecdat*"]
 
 [tool.setuptools.package-data]
 ecdat_core = ["signatures.json"]
