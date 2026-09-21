@@ -8,6 +8,10 @@ shelf life, and Z is the quantum threat horizon. When the inequality holds
 Public API:
     - :func:`assess_risk` -> compute a :class:`RiskAssessment` for a single
       detection against a signature entry.
+    - :func:`classify_urgency` -> map an urgency ratio ``(X + Y) / Z`` to a
+      risk level (``critical``/``high``/``medium``/``low``); the pure
+      classification step shared by :func:`assess_risk` and callers that
+      compute the ratio themselves.
 """
 
 from __future__ import annotations
@@ -159,7 +163,7 @@ def assess_risk(
     # 4. Urgency ratio, risk level, Mosca violation.
     # ------------------------------------------------------------------
     urgency_ratio = (x + y) / z
-    risk_level = _classify_risk(urgency_ratio)
+    risk_level = classify_urgency(urgency_ratio)
     mosca_violation = urgency_ratio >= 1.0
 
     return RiskAssessment(
@@ -246,14 +250,24 @@ def _default_migration_time(asset_type: str) -> float:
     return _MIGRATION_TIME_BY_ASSET.get(asset_type, 0.5)
 
 
-def _classify_risk(urgency_ratio: float) -> str:
-    """Classify risk level from the urgency ratio.
+def classify_urgency(urgency_ratio: float) -> str:
+    """Classify a Mosca urgency ratio into a risk level.
+
+    This is the pure ratio→level step of :func:`assess_risk`, exposed publicly
+    so callers that compute ``(X + Y) / Z`` themselves (e.g. the ``ecdat mosca``
+    calculator) reuse the exact same thresholds instead of duplicating them.
 
     Thresholds:
         - >= 1.0  → critical  (Mosca violated — migration needed now)
         - >= 0.8  → high
         - >= 0.5  → medium
         - <  0.5  → low
+
+    Args:
+        urgency_ratio: The ``(X + Y) / Z`` urgency ratio.
+
+    Returns:
+        One of ``"critical"``, ``"high"``, ``"medium"``, ``"low"``.
     """
     if urgency_ratio >= 1.0:
         return "critical"

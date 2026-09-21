@@ -41,6 +41,18 @@ def main(argv: list[str] | None = None) -> int:
         from ecdat.cli.commands.report import run as report_run
         return report_run(args)
 
+    elif command == "rules":
+        from ecdat.cli.commands.rules import run as rules_run
+        return rules_run(args)
+
+    elif command == "explain":
+        from ecdat.cli.commands.explain import run as explain_run
+        return explain_run(args)
+
+    elif command == "mosca":
+        from ecdat.cli.commands.mosca import run as mosca_run
+        return mosca_run(args)
+
     else:
         print(f"Error: unknown command {command!r}", file=sys.stderr)
         return 2

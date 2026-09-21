@@ -16,7 +16,7 @@ def build_parser() -> argparse.ArgumentParser:
 
     Returns:
         An ``ArgumentParser`` with subcommands ``scan``, ``history``,
-        and ``report`` already registered.
+        ``report``, ``rules``, ``explain``, and ``mosca`` already registered.
     """
     parser = argparse.ArgumentParser(
         prog="ecdat",
@@ -73,6 +73,70 @@ def build_parser() -> argparse.ArgumentParser:
         default="markdown",
         dest="format",
         help="Output format (default: markdown)",
+    )
+
+    # ---- rules --------------------------------------------------------------
+    rules_parser = sub.add_parser(
+        "rules", help="Browse the cryptographic signature knowledge base"
+    )
+    rules_parser.add_argument(
+        "query",
+        nargs="?",
+        default=None,
+        help="Case-insensitive substring over signature name/family",
+    )
+    rules_parser.add_argument(
+        "--family",
+        default=None,
+        help="Only signatures whose family contains this value",
+    )
+    rules_parser.add_argument(
+        "--language",
+        default=None,
+        help="Only signatures with detection patterns for this language",
+    )
+    rules_parser.add_argument(
+        "--json",
+        action="store_true",
+        help="Emit the results as JSON on stdout",
+    )
+
+    # ---- explain ------------------------------------------------------------
+    explain_parser = sub.add_parser(
+        "explain", help="Explain an algorithm in plain English"
+    )
+    explain_parser.add_argument(
+        "name",
+        help="Signature name or family to explain (case-insensitive)",
+    )
+
+    # ---- mosca --------------------------------------------------------------
+    mosca_parser = sub.add_parser(
+        "mosca", help="Mosca's-inequality calculator with a visual timeline"
+    )
+    mosca_parser.add_argument(
+        "-x",
+        "--shelf-life",
+        type=float,
+        default=None,
+        dest="x",
+        help="X — data lifetime in years (data must stay secret)",
+    )
+    mosca_parser.add_argument(
+        "-y",
+        "--migration",
+        type=float,
+        default=None,
+        dest="y",
+        help="Y — migration time in years",
+    )
+    mosca_parser.add_argument(
+        "-z",
+        "--threat",
+        type=float,
+        default=None,
+        dest="z",
+        help="Z — quantum threat horizon in years",
     )
 
     return parser
