@@ -110,15 +110,22 @@ class EcdatApp(App[int]):
         )
 
     def start_scan(self, target: str, label: Optional[str] = None) -> None:
-        """Begin a scan for *target* (stub until the scan screen lands)."""
-        self.notify(f"scan: {target}", title=label or "ECDAT")
+        """Push the live scan screen for *target*.
+
+        Args:
+            target: A local folder path or an ``https://`` Git URL.
+            label: Optional display label (e.g. "demo project"); defaults to
+                *target* on the scan screen.
+        """
+        from ecdat.tui.screens.scan import ScanScreen
+
+        self.push_screen(ScanScreen(target, label))
 
     def run_demo(self) -> None:
-        """Scan the bundled demo project (stub until the scan screen lands)."""
-        from ecdat.services.demo import demo_source
+        """Scan the bundled demo project on the live scan screen."""
+        from ecdat.tui.screens.scan import ScanScreen
 
-        source = demo_source()
-        self.start_scan(str(source), label="demo project (bundled sample)")
+        self.push_screen(ScanScreen("", "demo project", demo=True))
 
     def open_history_entry(self, scan_id: str) -> None:
         """Open a saved scan (stub until the history screen lands)."""
