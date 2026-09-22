@@ -165,3 +165,140 @@ def test_html_has_title(demo_result: ScanResult) -> None:
 def test_html_has_footer(demo_result: ScanResult) -> None:
     html = export_html(demo_result)
     assert "ECDAT" in html  # footer mention
+
+
+def test_html_detections_and_recommendations_sections_are_byte_exact() -> None:
+    """Pin the exact rendered Detections/Recommendations sections.
+
+    These sections are built by joining rows with ``"\\n"``. They used to be
+    assembled inline inside the HTML f-string, which put a backslash in an
+    f-string replacement field -- syntax that only parses on Python 3.12+
+    (PEP 701) and broke import on 3.10/3.11. The join now happens in plain
+    locals, so this test also serves as the regression guard: the rendered
+    bytes must not change.
+    """
+    from datetime import datetime, timezone
+
+    from ecdat_core.models import Detection, Recommendation, RiskAssessment
+
+    dets = [
+        Detection(
+            id="d1",
+            file_path="src/a.py",
+            line_number=3,
+            matched_text="RSA",
+            asset_type="algorithm",
+            algorithm_family="RSA",
+            key_size_bits=2048,
+            quantum_vulnerable=True,
+            classically_broken=False,
+            confidence=0.9,
+            language="python",
+            detection_method="regex",
+        ),
+        Detection(
+            id="d2",
+            file_path="src/b.py",
+            line_number=7,
+            matched_text="MD5",
+            asset_type="algorithm",
+            algorithm_family="MD5",
+            key_size_bits=None,
+            quantum_vulnerable=False,
+            classically_broken=True,
+            confidence=0.5,
+            language="python",
+            detection_method="regex",
+        ),
+    ]
+    ras = [
+        RiskAssessment(
+            detection_id="d1",
+            migration_time_years=3.0,
+            shelf_life_years=5.0,
+            threat_horizon_years=8.0,
+            urgency_ratio=1.0,
+            risk_level="critical",
+            mosca_violation=True,
+        ),
+        RiskAssessment(
+            detection_id="d2",
+            migration_time_years=0.5,
+            shelf_life_years=0.5,
+            threat_horizon_years=10.0,
+            urgency_ratio=0.1,
+            risk_level="quantum-safe",
+            mosca_violation=False,
+        ),
+    ]
+    recs = [
+        Recommendation(
+            detection_id="d1",
+            recommended_algorithm="ML-KEM-768",
+            fips_reference="FIPS 203",
+            rationale="Replace RSA with ML-KEM.",
+            latency_note="fast",
+            migration_note="swap",
+        ),
+        Recommendation(
+            detection_id="d2",
+            recommended_algorithm="SHA-256",
+            fips_reference="FIPS 180-4",
+            rationale="Replace MD5.",
+            latency_note="fast",
+            migration_note="swap",
+        ),
+    ]
+    result = ScanResult(
+        scan_id="scan-1",
+        target="relative/path",
+        detections=dets,
+        risk_assessments=ras,
+        recommendations=recs,
+        scanned_at=datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat(),
+        files_scanned=2,
+    )
+
+    html = export_html(result)
+
+    expected_detections = (
+        "<h2>Detections</h2><table>"
+        "<tr><th>#</th><th>File</th><th>Algorithm</th><th>Key Size</th>"
+        "<th>Quantum Vuln</th><th>Classical Broken</th>"
+        "<th>Confidence</th><th>Risk</th></tr>"
+        '<tr><td>1</td><td><code>src/a.py</code></td><td>RSA</td>'
+        '<td>2048</td><td>true</td><td>false</td><td>0.90</td>'
+        '<td class="risk-critical">critical</td></tr>\n'
+        '<tr><td>2</td><td><code>src/b.py</code></td><td>MD5</td>'
+        '<td>\u2014</td><td>false</td><td>true</td><td>0.50</td>'
+        '<td class="risk-safe">quantum-safe</td></tr></table>'
+    )
+    expected_recommendations = (
+        "<h2>Recommendations</h2><ul>"
+        "<li><strong>RSA</strong> (src/a.py:3) \u2192 ML-KEM-768 (FIPS 203)</li>\n"
+        "<li><strong>MD5</strong> (src/b.py:7) \u2192 SHA-256 (FIPS 180-4)</li>"
+        "</ul>"
+    )
+
+    assert expected_detections in html
+    assert expected_recommendations in html
+
+
+def test_html_empty_result_neither_section_is_rendered() -> None:
+    """An empty scan renders the fallback paragraph and no recommendations block."""
+    from datetime import datetime, timezone
+
+    result = ScanResult(
+        scan_id="scan-empty",
+        target="relative/path",
+        detections=[],
+        risk_assessments=[],
+        recommendations=[],
+        scanned_at=datetime(2026, 1, 1, tzinfo=timezone.utc).isoformat(),
+        files_scanned=0,
+    )
+
+    html = export_html(result)
+
+    assert "<p>No detections found.</p>" in html
+    assert "<h2>Recommendations</h2>" not in html
