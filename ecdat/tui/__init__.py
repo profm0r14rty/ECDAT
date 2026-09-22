@@ -18,6 +18,7 @@ def run_tui(
     auto_start: bool = False,
     no_anim: bool = False,
     no_splash: bool = False,
+    demo: bool = False,
 ) -> int:
     """Launch the animated ECDAT TUI.
 
@@ -30,10 +31,11 @@ def run_tui(
         auto_start: Start scanning *target* immediately on mount.
         no_anim: Disable all animation for this run.
         no_splash: Skip the splash screen for this run.
+        demo: Start the bundled demo scan immediately on mount.
 
     Returns:
         A process exit code (``0`` on a normal exit, ``2`` when the terminal
-        cannot host the TUI).
+        cannot host the TUI, ``3`` on an unexpected crash).
     """
     from ecdat.tui.app import run_tui as _run_tui
 
@@ -42,4 +44,5 @@ def run_tui(
         auto_start=auto_start,
         no_anim=no_anim,
         no_splash=no_splash,
+        demo=demo,
     )

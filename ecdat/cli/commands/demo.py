@@ -51,6 +51,11 @@ def register(subparsers: "argparse._SubParsersAction") -> None:
         action="store_true",
         help="Copy the sample under ECDAT_HOME/demo and print its path",
     )
+    parser.add_argument(
+        "--tui",
+        action="store_true",
+        help="Open the animated TUI straight into the demo scan",
+    )
 
 
 def run(args) -> int:
@@ -65,6 +70,11 @@ def run(args) -> int:
     no_color = True if getattr(args, "no_color", False) else None
     out_console = make_console(no_color=no_color)
     err_console = make_console(stderr=True, no_color=no_color)
+
+    if getattr(args, "tui", False):
+        from ecdat.tui import run_tui
+
+        return run_tui(auto_start=True, demo=True)
 
     if getattr(args, "path", False):
         from ecdat.services.demo import materialize_demo

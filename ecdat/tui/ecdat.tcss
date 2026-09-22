@@ -412,3 +412,176 @@ SplashScreen {
     border: round $primary;
     background: $surface;
 }
+
+/* ------------------------------------------------------------------ */
+/* Export modal (Phase 87)                                            */
+/* ------------------------------------------------------------------ */
+
+ExportScreen {
+    align: center middle;
+}
+
+#export-body {
+    width: 72;
+    height: auto;
+    max-height: 90%;
+    padding: 1 2;
+}
+
+#export-title {
+    width: 100%;
+    height: auto;
+    text-style: bold;
+    color: $accent;
+}
+
+#export-note {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+    color: $foreground-muted;
+}
+
+#export-formats {
+    width: 100%;
+    height: auto;
+    max-height: 10;
+    margin: 0 0 1 0;
+}
+
+#export-dir-label {
+    width: 100%;
+    height: auto;
+    padding: 0 0 0 0;
+}
+
+#export-dir {
+    width: 100%;
+    height: 3;
+}
+
+#export-error {
+    width: 100%;
+    height: auto;
+    padding: 1 0 0 0;
+}
+
+#export-buttons {
+    width: 100%;
+    height: auto;
+    align: right middle;
+    padding: 1 0 0 0;
+}
+
+#export-buttons Button {
+    margin: 0 0 0 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* History screen (Phase 87)                                          */
+/* ------------------------------------------------------------------ */
+
+#history-body {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+}
+
+#history-title {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+    text-style: bold;
+    color: $accent;
+}
+
+#history-table {
+    width: 100%;
+    height: 1fr;
+    border: round $primary;
+    background: $surface;
+}
+
+#history-empty {
+    width: 100%;
+    height: auto;
+    padding: 2 2;
+    color: $foreground-muted;
+}
+
+#history-confirm {
+    width: 56;
+    height: auto;
+    padding: 1 2;
+}
+
+#history-confirm-target {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#history-confirm-buttons {
+    width: 100%;
+    height: auto;
+    align: right middle;
+}
+
+#history-confirm-buttons Button {
+    margin: 0 0 0 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Help overlay (Phase 88)                                            */
+/* ------------------------------------------------------------------ */
+
+HelpScreen {
+    align: center middle;
+}
+
+#help-body {
+    width: 72;
+    height: auto;
+    max-height: 90%;
+    padding: 1 2;
+}
+
+#help-title {
+    width: 100%;
+    height: auto;
+    text-style: bold;
+    color: $accent;
+    padding: 0 0 1 0;
+}
+
+#help-content {
+    width: 100%;
+    height: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Terminal-too-small guard (Phase 88)                                */
+/* ------------------------------------------------------------------ */
+
+TooSmallScreen {
+    align: center middle;
+    background: $background;
+}
+
+#too-small-body {
+    width: auto;
+    height: auto;
+}
+
+#too-small-message {
+    width: auto;
+    height: auto;
+    text-align: center;
+}
+
+#too-small-hint {
+    width: auto;
+    height: auto;
+    padding: 1 0 0 0;
+    text-align: center;
+}

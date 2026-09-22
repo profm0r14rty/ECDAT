@@ -271,10 +271,23 @@ class ResultsScreen(Screen[None]):
         self.app.switch_screen(HomeScreen())
 
     def action_export_result(self) -> None:
-        """Export the result (placeholder)."""
+        """Open the export dialog and report where the bundle landed.
+
+        The dialog writes the bundle on a worker thread and dismisses with the
+        list of written paths (or ``None`` if cancelled).
+        """
+        from ecdat.tui.screens.export import ExportScreen
+
+        self.app.push_screen(ExportScreen(self.outcome), self._export_done)
+
+    def _export_done(self, paths: Optional[list]) -> None:
+        """Toast the outcome of an export once the dialog closes."""
+        if not paths:
+            return
+        directory = paths[0].parent
         self.notify(
-            "Export will be available in a later update — use `ecdat scan` CLI for now",
-            title="Coming Soon",
+            Text(f"Saved {len(paths)} files to {directory}"),
+            title="Exported",
         )
 
     def action_back_home(self) -> None:

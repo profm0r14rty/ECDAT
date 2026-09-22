@@ -152,7 +152,7 @@ async def test_picker_select_returns_highlighted_directory() -> None:
 @pytest.mark.asyncio
 async def test_narrow_size_hides_globe() -> None:
     app = EcdatApp(show_splash=False)
-    async with app.run_test(size=(70, 20)) as pilot:
+    async with app.run_test(size=(100, 26)) as pilot:
         await pilot.pause()
         home = _home(app)
         assert home.query_one("#home-globe").display is False

@@ -150,6 +150,8 @@ class HomeScreen(Screen[None]):
         except Exception:  # noqa: BLE001 - recents are decorative
             records = []
 
+        self._recents = list(records)
+
         if not records:
             panel.update("")
             return
@@ -165,7 +167,27 @@ class HomeScreen(Screen[None]):
             line.append(f" ({counts['critical']} critical)")
             lines.append(line)
             lines.append("\n")
+        lines.append("Esc / click to open a scan", style="dim")
         panel.update(lines)
+
+    def on_click(self, event) -> None:  # noqa: ANN001 - Textual event
+        """Open the clicked recent scan when the recents panel is clicked."""
+        if getattr(event.widget, "id", None) != "home-recent":
+            return
+        record = self._recent_at_offset(getattr(event, "y", 0))
+        if record is not None:
+            self.app.open_history_entry(record.scan_id)
+
+    def _recent_at_offset(self, offset: int):
+        """Map a click offset inside the recents panel to a record, or ``None``.
+
+        The first line is the "Recent scans" heading, and the hint line sits at
+        the bottom, so record *i* lives on line ``i + 1``.
+        """
+        index = offset - 1
+        if 0 <= index < len(getattr(self, "_recents", [])):
+            return self._recents[index]
+        return None
 
     # -- input ------------------------------------------------------------
 

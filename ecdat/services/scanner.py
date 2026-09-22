@@ -194,7 +194,7 @@ def _classify_local(raw: str) -> Target:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ScanOutcome:
     """The result of a scan operation.
 
@@ -202,13 +202,16 @@ class ScanOutcome:
         result: The raw engine ``ScanResult`` returned by ``run_scan``.
         vm: The renderer-ready :class:`ScanVM` view-model.
         duration_s: Wall-clock scan duration in seconds.
+        record_id: The ``scan_id`` persisted to history, or ``None`` when the
+            scan was not saved (``save_history=False`` or a write failure).
+        warnings: Non-fatal problems encountered while persisting history.
     """
-
-    __slots__ = ("result", "vm", "duration_s")
 
     result: ScanResult
     vm: ScanVM
     duration_s: float
+    record_id: Optional[str] = None
+    warnings: tuple[str, ...] = ()
 
 
 def _run_engine(
@@ -294,19 +297,51 @@ def perform_scan(
         vm = build_scan_vm(
             result, target=label or target.display, duration_s=duration_s
         )
-        return ScanOutcome(result=result, vm=vm, duration_s=duration_s)
+        record_id, warnings = _persist_history(result, save_history)
+        return ScanOutcome(
+            result=result,
+            vm=vm,
+            duration_s=duration_s,
+            record_id=record_id,
+            warnings=warnings,
+        )
 
     # --- string style -----------------------------------------------------
     classified = classify_target(target, force_git=is_git_url)
     result = _run_engine(classified, exclude=exclude, on_progress=on_progress)
 
-    if save_history:
-        try:
-            from ecdat.services.history import save_scan as _history_save
-
-            _history_save(result)
-        except Exception:
-            # History save never fails a scan.
-            pass
+    _persist_history(result, save_history)
 
     return result
+
+
+def _persist_history(
+    result: ScanResult, save_history: bool
+) -> tuple[Optional[str], tuple[str, ...]]:
+    """Persist *result* to history, never failing the scan on an I/O error.
+
+    The TUI and ``ecdat demo`` scan through the classified-:class:`Target`
+    branch, so history must be written there too — not only on the string
+    branch used by ``ecdat scan``.  A write failure is reported as a warning
+    rather than raised, so a scan is never lost because history was
+    unwritable.
+
+    Args:
+        result: The completed engine result to persist.
+        save_history: When ``False``, do nothing and return ``(None, ())``.
+
+    Returns:
+        ``(record_id, warnings)`` — the persisted ``scan_id`` (or ``None``),
+        and a tuple of non-fatal warning strings.
+    """
+    if not save_history:
+        return None, ()
+
+    try:
+        from ecdat.services.history import save_scan as _history_save
+
+        _history_save(result)
+    except Exception as exc:  # noqa: BLE001 - history must never fail a scan
+        return None, (f"Warning: failed to save scan to history: {exc}",)
+
+    return result.scan_id, ()
