@@ -222,10 +222,14 @@ async def test_digit_key_switches_to_existing_tab_only() -> None:
         await pilot.press("1")
         await pilot.pause()
         assert tabs.active == "tab-overview"
-        # Only Overview exists in this phase — ask for Findings and stay put.
+        # Phase 85 added the Findings tab — pressing 2 now switches to it.
         await pilot.press("2")
         await pilot.pause()
-        assert tabs.active == "tab-overview"
+        assert tabs.active == "tab-findings"
+        # An out-of-range key is silently ignored, leaving the active tab alone.
+        await pilot.press("9")
+        await pilot.pause()
+        assert tabs.active == "tab-findings"
 
 
 # ---------------------------------------------------------------------------

@@ -248,3 +248,167 @@ SplashScreen {
     height: auto;
     padding: 2 4;
 }
+
+/* ------------------------------------------------------------------ */
+/* Findings tab (Phase 85)                                            */
+/* ------------------------------------------------------------------ */
+
+#findings-pane {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+}
+
+#findings-controls {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+    align: left middle;
+}
+
+.chip {
+    width: auto;
+    height: 1;
+    padding: 0 1 0 0;
+}
+
+#findings-search {
+    width: 1fr;
+    max-width: 46;
+    height: 3;
+    margin: 0 1;
+}
+
+#findings-showing {
+    width: auto;
+    height: 1;
+    color: $foreground-muted;
+    padding: 0 0 0 1;
+}
+
+#findings-split {
+    width: 100%;
+    height: 1fr;
+}
+
+/* Wide layout: table on the left, detail on the right. */
+#findings {
+    width: 3fr;
+    height: 100%;
+    border: round $primary;
+    background: $surface;
+}
+
+#finding-detail {
+    width: 2fr;
+    height: 100%;
+    padding: 0 0 0 1;
+    border: round $primary;
+    background: $surface;
+}
+
+/* Narrow layout: stack the table above the detail. */
+#findings-split.-narrow {
+    layout: vertical;
+}
+
+#findings-split.-narrow #findings {
+    width: 100%;
+    height: 1fr;
+}
+
+#findings-split.-narrow #finding-detail {
+    width: 100%;
+    height: 1fr;
+    padding: 1 0 0 0;
+}
+
+#detail-header {
+    width: 100%;
+    height: auto;
+    text-style: bold;
+}
+
+#detail-location {
+    width: 100%;
+    height: auto;
+    color: $foreground-muted;
+    padding: 0 0 1 0;
+}
+
+#detail-flags {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#detail-why {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+.mosca-timeline {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#detail-urgency {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#detail-recommendation {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#detail-snippet {
+    width: 100%;
+    height: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Recommendations tab (Phase 86)                                     */
+/* ------------------------------------------------------------------ */
+
+#recs-pane {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+}
+
+#recs-table {
+    width: 3fr;
+    height: 100%;
+    border: round $primary;
+    background: $surface;
+}
+
+#recs-detail {
+    width: 2fr;
+    height: 100%;
+    padding: 0 0 0 1;
+    border: round $primary;
+    background: $surface;
+}
+
+#recs-files {
+    width: 100%;
+    height: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Files tab (Phase 86)                                               */
+/* ------------------------------------------------------------------ */
+
+#file-tree-pane {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+    border: round $primary;
+    background: $surface;
+}

@@ -1,13 +1,18 @@
-"""Results screen — Overview tab with emblem, headline, stats, risk chart,
-and priority actions list.
+"""Results screen — Overview, Findings, Recommendations, and Files tabs.
 
-The Findings, Recommendations, and Files tabs are stubbed (only their
-existence is checked for jump-to-findings logic).  Later phases fill them in.
+Overview shows an emblem, risk headline, stats, an animated risk chart, and the
+priority-actions list.  The Findings tab is a master/detail view with live
+severity / search / sort filtering, the Recommendations tab groups findings by
+their PQC replacement, and the Files tab is a findings-annotated file tree.
+
+Selecting an action in the Overview, or a file in the Files tree, jumps to the
+Findings tab with the matching filter applied.
 """
 
 from __future__ import annotations
 
 import time
+from typing import Optional
 
 from rich.text import Text
 from textual.app import ComposeResult
@@ -19,13 +24,17 @@ from textual.widgets import Footer, Header, Static, TabbedContent, TabPane
 
 from ecdat.services.scanner import ScanOutcome
 from ecdat.services.settings import load_settings
+from ecdat.tui.widgets.file_tree import FileTreePane
+from ecdat.tui.widgets.findings_table import FindingsPane
 from ecdat.tui.widgets.priority_list import PriorityList
+from ecdat.tui.widgets.recommendations import RecommendationsPane
 from ecdat.tui.widgets.risk_chart import RiskChart
 from ecdat.tui.widgets.stat_card import StatCard
 from ecdat.ui import art_static, motion
 from ecdat.ui.theme import PALETTE
 
 JumpToFindings = PriorityList.JumpToFindings
+FileSelected = FileTreePane.FileSelected
 
 _HEADLINE_REVEAL_S = 0.6
 _HEADLINE_TICK_S = 1.0 / 30.0
@@ -34,9 +43,9 @@ _HEADLINE_TICK_S = 1.0 / 30.0
 class ResultsScreen(Screen[None]):
     """The post-scan results screen.
 
-    Shows an emblem, risk headline, stats grid, risk donut chart, and a
-    priority-actions list in the Overview tab.  Three additional tabs
-    (Findings, Recommendations, Files) are placeholders for later phases.
+    Tabs: Overview (emblem, headline, stats, risk donut, priority actions),
+    Findings (master/detail with filters), Recommendations (grouped PQC
+    replacements), and Files (findings-annotated tree).
     """
 
     BINDINGS = [
@@ -84,6 +93,12 @@ class ResultsScreen(Screen[None]):
                     yield PriorityList(
                         self.vm.priority_actions, limit=8, id="priority-list"
                     )
+            with TabPane("Findings", id="tab-findings"):
+                yield FindingsPane(self.vm, id="findings-pane")
+            with TabPane("Recommendations", id="tab-recommendations"):
+                yield RecommendationsPane(self.vm, id="recs-pane")
+            with TabPane("Files", id="tab-files"):
+                yield FileTreePane(self.vm, id="file-tree-pane")
         yield Footer()
 
     def on_mount(self) -> None:
@@ -183,27 +198,50 @@ class ResultsScreen(Screen[None]):
         message.stop()
         self.jump_to_findings(message.family, message.file_path)
 
-    def jump_to_findings(self, family: str, file_path: str) -> None:
-        """Switch to the Findings tab if it exists, otherwise notify.
+    def on_file_tree_pane_file_selected(self, message: FileSelected) -> None:
+        """Handle a file selection in the Files tree.
+
+        Jumps to the Findings tab filtered to that file.  The family filter is
+        left unset: a file can hold several families, and the tree row is about
+        the file, so filtering by file alone shows the complete picture.
+        """
+        message.stop()
+        self.jump_to_findings(None, message.file_path)
+
+    def jump_to_findings(self, family: Optional[str], file_path: Optional[str]) -> None:
+        """Switch to the Findings tab and apply the requested filter.
 
         Args:
-            family: The algorithm family to filter by.
-            file_path: The file path to filter by.
+            family: Exact algorithm family to filter by, or ``None`` to leave
+                the family filter unset.
+            file_path: Exact file path to filter by, or ``None``.
         """
         tabbed = self.query_one("#results-tabs", TabbedContent)
         try:
             tabbed.query_one("#tab-findings")
-            tabbed.active = "tab-findings"
         except NoMatches:
             self.notify(
                 "Findings tab will be available in a later update",
                 title="Coming Soon",
             )
+            return
+
+        tabbed.active = "tab-findings"
+        try:
+            pane = self.query_one("#findings-pane", FindingsPane)
+        except NoMatches:
+            return
+        pane.apply_filter(file=file_path, family=family)
+        pane.focus_table()
 
     # -- actions ------------------------------------------------------------
 
     def action_switch_tab(self, num: str) -> None:
-        """Switch to the tab mapped from *num* (``"1"``..``"4"``)."""
+        """Switch to the tab mapped from *num* (``"1"``..``"4"``).
+
+        Moving to the Findings tab focuses its table so the ``c``/``h``/``m``/
+        ``l``/``s`` filters work immediately after pressing ``2``.
+        """
         tab_map = {
             "1": "tab-overview",
             "2": "tab-findings",
@@ -218,7 +256,13 @@ class ResultsScreen(Screen[None]):
             tabbed.query_one(f"#{tab_id}")
             tabbed.active = tab_id
         except NoMatches:
-            pass  # tab doesn't exist yet — silently ignored
+            return
+
+        if tab_id == "tab-findings":
+            try:
+                self.query_one("#findings-pane", FindingsPane).focus_table()
+            except NoMatches:  # pragma: no cover - defensive
+                pass
 
     def action_new_scan(self) -> None:
         """Return to Home to start a new scan."""
