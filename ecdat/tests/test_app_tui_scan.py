@@ -9,6 +9,7 @@ proves the wiring.
 from __future__ import annotations
 
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -205,7 +206,10 @@ async def test_demo_binding_reaches_results() -> None:
 
 @pytest.mark.asyncio
 async def test_git_target_shows_clone_stage(monkeypatch) -> None:
+    release = threading.Event()
+
     def fake_perform_scan(target, *, label=None, on_progress=None, **kw):
+        release.wait(timeout=5.0)
         return _outcome()
 
     monkeypatch.setattr(scanner_mod, "perform_scan", fake_perform_scan)
@@ -218,6 +222,7 @@ async def test_git_target_shows_clone_stage(monkeypatch) -> None:
         await pilot.pause()
         assert screen.query_one("#stage-clone", Static).display is True
 
+        release.set()
         await _wait_for_results(pilot, app)
         await pilot.pause(0.1)
 

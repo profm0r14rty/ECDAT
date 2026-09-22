@@ -11,6 +11,7 @@ disarm on a manual dismiss.
 from __future__ import annotations
 
 import os
+import sys
 from pathlib import Path
 from typing import Optional
 
@@ -22,6 +23,9 @@ import ecdat.tui.screens.splash as splash_mod
 from ecdat.tui.app import EcdatApp
 from ecdat.tui.screens.home import HomeScreen
 from ecdat.tui.screens.splash import SplashScreen
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from tui_helpers import wait_until  # noqa: E402
 
 _SPLASH = "SplashScreen"
 _HOME = "HomeScreen"
@@ -135,30 +139,35 @@ async def test_auto_dismiss_fires_within_the_window(anim_on, monkeypatch) -> Non
     monkeypatch.setattr(splash_mod, "_AUTO_DISMISS_SECONDS", 0.2)
     app = EcdatApp(show_splash=True)
     async with app.run_test(size=_SIZE) as pilot:
-        await pilot.pause(0.05)
-        splash = app.screen
-        assert isinstance(splash, SplashScreen)
-
-        await pilot.pause(0.6)
-
-        assert splash._dismissed is True
+        # The timer may already have fired by the time the test body runs (slow
+        # CI runners spend longer than the window starting the app).  Poll for
+        # the observable end state rather than racing a fixed sleep.
+        await wait_until(
+            pilot, lambda: isinstance(app.screen, HomeScreen), timeout=3.0
+        )
         assert isinstance(app.screen, HomeScreen)
+        assert all(not isinstance(s, SplashScreen) for s in app.screen_stack)
         assert _stack(app) == ["Screen", _HOME]
 
 
 @pytest.mark.asyncio
 async def test_manual_dismiss_disarms_auto_timer(anim_on, monkeypatch) -> None:
     """A manual keypress stops the pending timer so it can never fire."""
-    monkeypatch.setattr(splash_mod, "_AUTO_DISMISS_SECONDS", 0.2)
+    # A window far longer than the test itself keeps the timer from firing
+    # during setup, so the manual press is provably what dismisses the splash.
+    monkeypatch.setattr(splash_mod, "_AUTO_DISMISS_SECONDS", 30.0)
     app = EcdatApp(show_splash=True)
     async with app.run_test(size=_SIZE) as pilot:
-        await pilot.pause(0.05)
+        await wait_until(
+            pilot, lambda: isinstance(app.screen, SplashScreen), timeout=3.0
+        )
         splash = app.screen
-        assert isinstance(splash, SplashScreen)
         assert splash._auto_timer is not None
 
         await pilot.press("x")
-        await pilot.pause(0.6)
+        await wait_until(
+            pilot, lambda: isinstance(app.screen, HomeScreen), timeout=3.0
+        )
 
         assert splash._auto_timer is None
         assert _stack(app) == ["Screen", _HOME]

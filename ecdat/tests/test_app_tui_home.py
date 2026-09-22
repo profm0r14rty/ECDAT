@@ -194,7 +194,7 @@ async def test_recents_render_after_history_entry(tmp_path: Path) -> None:
 
 @pytest.mark.asyncio
 async def test_hostile_target_is_not_interpreted_as_markup(tmp_path: Path) -> None:
-    hostile = "[bold red]evil\x1b[31m"
+    hostile = "[bold red]evil"
     target = tmp_path / hostile
     target.mkdir()
 

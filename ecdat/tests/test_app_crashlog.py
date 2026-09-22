@@ -42,12 +42,14 @@ class TestPaths:
         monkeypatch.delenv("ECDAT_HOME", raising=False)
         monkeypatch.delenv("XDG_DATA_HOME", raising=False)
         monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
         monkeypatch.setattr(sys, "platform", "linux")
         assert paths.home_dir() == tmp_path / ".local" / "share" / "ecdat"
 
     def test_darwin(self, monkeypatch, tmp_path):
         monkeypatch.delenv("ECDAT_HOME", raising=False)
         monkeypatch.setenv("HOME", str(tmp_path))
+        monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
         monkeypatch.setattr(sys, "platform", "darwin")
         assert paths.home_dir() == (
             tmp_path / "Library" / "Application Support" / "ecdat"

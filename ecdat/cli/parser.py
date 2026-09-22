@@ -79,7 +79,11 @@ class _VersionAction(argparse.Action):
 
     def __call__(self, parser, namespace, values, option_string=None):
         from ecdat.cli.commands.version_cmd import render_version
+        from ecdat.ui.console import _ensure_utf8_streams
 
+        # The version line contains U+00B7; reconfigure stdout to UTF-8 first
+        # (Windows defaults to cp1252) so the payload is valid UTF-8.
+        _ensure_utf8_streams()
         sys.stdout.write(render_version() + "\n")
         parser.exit(0)
 

@@ -44,5 +44,11 @@ def render_version() -> str:
 
 def run(args) -> int:
     """Write the version line to stdout; return exit code 0."""
+    from ecdat.ui.console import _ensure_utf8_streams
+
+    # The version line contains U+00B7; on Windows the default stdout encoding
+    # is cp1252, which would emit non-UTF-8 bytes.  Reconfigure first, matching
+    # every other payload writer.
+    _ensure_utf8_streams()
     sys.stdout.write(render_version() + "\n")
     return 0

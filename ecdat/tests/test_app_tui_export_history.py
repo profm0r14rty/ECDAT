@@ -412,7 +412,10 @@ async def test_recents_strip_click_opens_scan() -> None:
         await pilot.click(panel, offset=(2, 1))
         await wait_until(
             pilot,
-            lambda: isinstance(app.screen, ResultsScreen)
-            or isinstance(app.screen, HistoryScreen),
+            lambda: isinstance(app.screen, HistoryScreen)
+            or (
+                isinstance(app.screen, ResultsScreen)
+                and bool(app.screen.query("#tabs-list > Tab.-active"))
+            ),
             timeout=10.0,
         )
