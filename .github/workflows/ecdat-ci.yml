@@ -23,6 +23,10 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python: ["3.12", "3.13"]
+        # Floor is 3.12 (verified by a uv sweep of 3.10-3.13 on the B5-merged
+        # tree: 3.10/3.11 fail to even import ecdat.services.exporters -- it
+        # uses a backslash inside an f-string expression, PEP 701 syntax that
+        # only parses on 3.12+). 3.14 stays continue-on-error (experimental).
         include:
           - { os: ubuntu-latest, python: "3.14", experimental: true }
           - { os: windows-latest, python: "3.14", experimental: true }

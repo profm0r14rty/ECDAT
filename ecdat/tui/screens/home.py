@@ -27,6 +27,7 @@ from ecdat.services.scanner import ScanError, classify_target
 from ecdat.tui.screens.pick_dir import PickDirScreen
 from ecdat.tui.widgets.art_view import ArtView
 from ecdat.tui.widgets.banner import BannerWidget
+from ecdat.ui.theme import strip_control_chars
 
 # Breakpoints for the responsive hero.
 _WIDE_COLS = 100
@@ -162,7 +163,7 @@ class HomeScreen(Screen[None]):
             counts = _risk_counts(record)
             line = Text()
             line.append("\u25cf ", style="bold")
-            line.append(record.target)
+            line.append(strip_control_chars(record.target))
             line.append(f" \u2014 {counts['total']} findings")
             line.append(f" ({counts['critical']} critical)")
             lines.append(line)
@@ -210,11 +211,16 @@ class HomeScreen(Screen[None]):
         try:
             target = classify_target(value)
         except ScanError as exc:
-            hint.update(Text(exc.user_message, style="red"))
+            hint.update(Text(strip_control_chars(exc.user_message), style="red"))
             return
 
         if result is not None and not result.is_valid:
-            hint.update(Text(result.failure_descriptions[0], style="red"))
+            hint.update(
+                Text(
+                    strip_control_chars(result.failure_descriptions[0]),
+                    style="red",
+                )
+            )
             return
 
         label = "local folder" if target.kind == "local" else "Git repository (https)"
@@ -244,7 +250,7 @@ class HomeScreen(Screen[None]):
             classify_target(value)
         except ScanError as exc:
             self.query_one("#target-hint", Static).update(
-                Text(exc.user_message, style="red")
+                Text(strip_control_chars(exc.user_message), style="red")
             )
             return
         self.app.start_scan(value)

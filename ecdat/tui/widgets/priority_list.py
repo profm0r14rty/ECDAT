@@ -19,7 +19,7 @@ from textual.widgets.option_list import Option
 
 from ecdat.services.viewmodel import PriorityAction
 from ecdat.ui.render import risk_chip
-from ecdat.ui.theme import PALETTE
+from ecdat.ui.theme import PALETTE, strip_control_chars
 
 
 def _ellipsis_middle(path: str, width: int = 40) -> str:
@@ -116,7 +116,9 @@ class PriorityList(OptionList):
         path = _ellipsis_middle(action.file_path, 40)
         prompt.append(
             Text(
-                f"{action.family} \u2014 {path} ({action.count}) \u2192 {action.recommended}"
+                strip_control_chars(
+                    f"{action.family} \u2014 {path} ({action.count}) \u2192 {action.recommended}"
+                )
             )
         )
         return Option(prompt)

@@ -27,6 +27,7 @@ from textual.widgets import Button, DataTable, Footer, Header, Label, Static
 from ecdat.services.history import HistoryError, delete_scan, list_scans
 from ecdat.services.scanner import ScanOutcome
 from ecdat.services.viewmodel import build_scan_vm
+from ecdat.ui.theme import strip_control_chars
 from ecdat_core.models import ScanResult
 
 # Widget ids.
@@ -73,7 +74,9 @@ class _ConfirmDeleteScreen(ModalScreen[bool]):
     def compose(self) -> ComposeResult:
         with Vertical(id="history-confirm", classes="panel"):
             yield Label("Delete this scan?", id="history-confirm-title")
-            yield Static(Text(self._target), id="history-confirm-target")
+            yield Static(
+                Text(strip_control_chars(self._target)), id="history-confirm-target"
+            )
             with Horizontal(id="history-confirm-buttons"):
                 yield Button("Delete", id=_CONFIRM_YES, variant="error")
                 yield Button("Cancel", id=_CONFIRM_NO)
@@ -134,7 +137,7 @@ class HistoryScreen(Screen[None]):
             counts = _risk_counts(record)
             table.add_row(
                 Text(_when(record)),
-                Text(record.target),
+                Text(strip_control_chars(record.target)),
                 Text(str(record.files_scanned)),
                 Text(str(counts["total"])),
                 Text(str(counts["critical"])),
@@ -231,7 +234,11 @@ class HistoryScreen(Screen[None]):
             try:
                 delete_scan(record.scan_id)
             except HistoryError as exc:
-                self.notify(Text(str(exc)), title="History", severity="error")
+                self.notify(
+                    Text(strip_control_chars(str(exc))),
+                    title="History",
+                    severity="error",
+                )
                 return
             self._reload()
 

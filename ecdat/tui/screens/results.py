@@ -31,7 +31,7 @@ from ecdat.tui.widgets.recommendations import RecommendationsPane
 from ecdat.tui.widgets.risk_chart import RiskChart
 from ecdat.tui.widgets.stat_card import StatCard
 from ecdat.ui import art_static, motion
-from ecdat.ui.theme import PALETTE
+from ecdat.ui.theme import PALETTE, strip_control_chars
 
 JumpToFindings = PriorityList.JumpToFindings
 FileSelected = FileTreePane.FileSelected
@@ -160,7 +160,7 @@ class ResultsScreen(Screen[None]):
     def _render_meta(self) -> None:
         meta = Text()
         meta.append("Target: ", style="bold")
-        meta.append(Text(self.vm.target))
+        meta.append(Text(strip_control_chars(self.vm.target)))
         meta.append("\n")
         duration = (
             f"{self.vm.duration_s:.1f}s"

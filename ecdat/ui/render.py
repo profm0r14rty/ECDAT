@@ -34,6 +34,7 @@ from ecdat.ui.theme import (
     RISK_COLORS,
     RISK_LABELS,
     RISK_ORDER,
+    strip_control_chars,
 )
 
 # ---------------------------------------------------------------------------
@@ -49,8 +50,14 @@ _UNICODE_EIGHTHS = "\u258f\u258e\u258d\u258c\u258b\u258a\u2589\u2588"  # ▏▎�
 
 
 def _safe(value: str) -> Text:
-    """Wrap a string in a plain :class:`~rich.text.Text` — no markup parsing."""
-    return Text(value, style=Style())
+    """Wrap a string in a plain :class:`~rich.text.Text` — no markup parsing.
+
+    The value is first passed through
+    :func:`~ecdat.ui.theme.strip_control_chars` so a raw ESC / C0 / C1 byte in
+    an attacker-controlled field can never reach the terminal as part of an
+    ANSI/OSC/DCS escape sequence.
+    """
+    return Text(strip_control_chars(value), style=Style())
 
 
 def _ellipsis_path(path: str, line: int | None, width: int = 50) -> str:

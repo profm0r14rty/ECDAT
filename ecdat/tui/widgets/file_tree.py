@@ -15,7 +15,7 @@ from textual.message import Message
 from textual.widgets import Tree
 
 from ecdat.services.viewmodel import ScanVM
-from ecdat.ui.theme import RISK_COLORS, RISK_INDEX
+from ecdat.ui.theme import RISK_COLORS, RISK_INDEX, strip_control_chars
 
 
 # ---------------------------------------------------------------------------
@@ -104,7 +104,11 @@ class FileTreePane(Tree):
     ) -> None:
         cls = f"{classes} file-tree-pane" if classes else "file-tree-pane"
         # Root label is the scan target — attacker-controlled → wrap in Text.
-        root_label = Text(vm.target) if isinstance(vm.target, str) else vm.target
+        root_label = (
+            Text(strip_control_chars(vm.target))
+            if isinstance(vm.target, str)
+            else vm.target
+        )
         super().__init__(root_label, id=id or "file-tree", classes=cls)
         self._vm: ScanVM = vm
         self._file_records: List[Tuple[str, str]] = []  # (display_name, original_path)
@@ -254,7 +258,7 @@ class FileTreePane(Tree):
             if child.get("is_file"):
                 # --- File leaf ---
                 count = child["count"]
-                label_text = Text(name)
+                label_text = Text(strip_control_chars(name))
                 label_text.append(Text(f" ({count})"))
                 worst_risk = child.get("worst_risk", "")
                 color = RISK_COLORS.get(worst_risk)
@@ -271,7 +275,7 @@ class FileTreePane(Tree):
             else:
                 # --- Directory ---
                 count = child["count"]
-                label_text = Text(f"{name}/ ({count})")
+                label_text = Text(strip_control_chars(f"{name}/ ({count})"))
                 label_text.stylize("bold")
                 node = parent_node.add(label_text, data=None)
                 self._render_tree(node, child)

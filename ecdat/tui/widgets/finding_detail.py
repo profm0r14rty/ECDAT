@@ -24,7 +24,7 @@ from textual.widgets import Static
 from ecdat.services.viewmodel import FindingVM
 from ecdat.tui.widgets.mosca_timeline import MoscaTimeline
 from ecdat.ui.render import risk_chip, smooth_bar
-from ecdat.ui.theme import PALETTE
+from ecdat.ui.theme import PALETTE, strip_control_chars
 
 # The urgency gauge is normalised against this ceiling so a runaway ratio does
 # not simply saturate: ratios at or above 1.5 render as a full bar.
@@ -134,14 +134,17 @@ class FindingDetail(VerticalScroll):
         header = Text()
         header.append(risk_chip(f.risk_level))
         header.append("  ")
-        header.append(Text(f.algorithm, style="bold"))
+        header.append(Text(strip_control_chars(f.algorithm), style="bold"))
         self._set("detail-header", header)
 
     def _render_location(self, f: FindingVM) -> None:
         location = Text()
-        location.append(Text(f"{f.file_path}:{f.line}"))
+        location.append(Text(strip_control_chars(f"{f.file_path}:{f.line}")))
         if f.language:
-            location.append(f"   [{f.language}]", style=Style(color=PALETTE.muted))
+            location.append(
+                strip_control_chars(f"   [{f.language}]"),
+                style=Style(color=PALETTE.muted),
+            )
         self._set("detail-location", location)
 
     def _render_flags(self, f: FindingVM) -> None:
@@ -173,7 +176,7 @@ class FindingDetail(VerticalScroll):
         why = Text()
         why.append("Why it matters\n", style="bold")
         if f.rationale:
-            why.append(Text(f.rationale))
+            why.append(Text(strip_control_chars(f.rationale)))
         else:
             why.append(Text(_PLACEHOLDER, style=Style(color=PALETTE.muted)))
         self._set("detail-why", why)
@@ -197,13 +200,18 @@ class FindingDetail(VerticalScroll):
         rec = Text()
         rec.append("Recommended replacement\n", style="bold")
         if f.recommended:
-            rec.append(Text(f.recommended, style=Style(color=PALETTE.accent, bold=True)))
+            rec.append(
+                Text(
+                    strip_control_chars(f.recommended),
+                    style=Style(color=PALETTE.accent, bold=True),
+                )
+            )
         else:
             rec.append(Text("No migration needed", style=Style(color=PALETTE.muted, italic=True)))
         rec.append("\n")
         rec.append("FIPS reference: ", style=Style(color=PALETTE.muted))
         if f.fips_reference:
-            rec.append(Text(f.fips_reference))
+            rec.append(Text(strip_control_chars(f.fips_reference)))
         else:
             rec.append(Text(_PLACEHOLDER, style=Style(color=PALETTE.muted)))
         rec.append(f"   Confidence: {f.confidence * 100:.0f}%", style=Style(color=PALETTE.muted))
@@ -214,16 +222,17 @@ class FindingDetail(VerticalScroll):
         if not f.snippet:
             widget.update(Text("No snippet captured", style=Style(color=PALETTE.muted, italic=True)))
             return
+        snippet = strip_control_chars(f.snippet)
         try:
             syntax = Syntax(
-                f.snippet,
+                snippet,
                 lexer=f.language or "text",
                 theme="ansi_dark",
                 word_wrap=True,
                 background_color=PALETTE.surface,
             )
         except Exception:  # noqa: BLE001 - unknown lexer must never crash the pane
-            syntax = Text(f.snippet)
+            syntax = Text(snippet)
         widget.update(syntax)
 
     # -- helpers ------------------------------------------------------------

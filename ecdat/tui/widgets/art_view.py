@@ -53,12 +53,29 @@ class ArtView(Static):
         self._paused = False
         self._frozen = False
         self._timer = None
+        self._static = False
 
     def on_mount(self) -> None:
         if not motion.animations_enabled(load_settings().reduce_motion):
-            self._render_static()
+            # ``on_mount`` runs before Textual has laid the widget out, so
+            # ``content_size`` is still ``0x0`` here and drawing now would
+            # paint a blank frame.  Defer to after the first refresh, when
+            # the widget actually has a size.
+            self._static = True
+            self.call_after_refresh(self._render_static)
             return
         self._timer = self.set_interval(1.0 / self.fps, self._tick)
+
+    def on_resize(self, event) -> None:  # noqa: ANN001 - Textual event
+        """Redraw the static frame when motion is off.
+
+        A resize may land before the deferred first draw (or change the size
+        afterwards); re-rendering keeps the widget from being stuck blank.
+        When animations are enabled the timer owns every redraw, so this is a
+        deliberate no-op and existing behaviour is unchanged.
+        """
+        if self._static:
+            self.call_after_refresh(self._render_static)
 
     def _render_static(self) -> None:
         """Draw the single deterministic frame used when motion is off."""

@@ -22,6 +22,7 @@ from ecdat.tui.screens.results import ResultsScreen
 from ecdat.tui.widgets.finding_detail import FindingDetail
 from ecdat.tui.widgets.findings_table import FindingsPane
 from ecdat.tui.widgets.mosca_timeline import MoscaTimeline
+from ecdat.ui.theme import strip_control_chars
 from ecdat_core.models import Detection, Recommendation, RiskAssessment, ScanResult
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -487,15 +488,20 @@ async def test_hostile_finding_renders_literally() -> None:
 
         table = pane.query_one("#findings", DataTable)
         assert table.row_count == 1
-        # The raw markup text reaches the cells unparsed.
+        # The markup-shaped text reaches the cells literally — unparsed — while
+        # the raw ESC byte is stripped at the untrusted-content boundary.
         cells = table.get_row_at(0)
         joined = "".join(getattr(c, "plain", str(c)) for c in cells)
-        assert HOSTILE in joined
+        cleaned = strip_control_chars(HOSTILE)
+        assert cleaned in joined
+        assert "\x1b" not in joined
 
         detail = pane.query_one("#finding-detail", FindingDetail)
         detail.show_finding(pane.visible_findings()[0])
         await pilot.pause()
-        assert HOSTILE in detail.plain_text()
+        detail_text = detail.plain_text()
+        assert cleaned in detail_text
+        assert "\x1b" not in detail_text
 
 
 @pytest.mark.asyncio

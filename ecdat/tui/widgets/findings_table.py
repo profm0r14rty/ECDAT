@@ -34,7 +34,7 @@ from ecdat.services.filtering import SORT_LABELS, SORT_MODES, filter_findings, s
 from ecdat.services.viewmodel import FindingVM, ScanVM
 from ecdat.tui.widgets.finding_detail import FindingDetail
 from ecdat.ui.render import risk_chip
-from ecdat.ui.theme import PALETTE, RISK_COLORS
+from ecdat.ui.theme import PALETTE, RISK_COLORS, strip_control_chars
 
 # Severity levels in display order, paired with the chip key that toggles them.
 _LEVELS: tuple[tuple[str, str], ...] = (
@@ -247,9 +247,9 @@ class FindingsPane(Vertical):
             flags.append("!")
         return (
             risk_chip(f.risk_level),
-            Text(f.algorithm),
-            Text(f.family),
-            Text(_ellipsis_location(f.file_path, f.line)),
+            Text(strip_control_chars(f.algorithm)),
+            Text(strip_control_chars(f.family)),
+            Text(strip_control_chars(_ellipsis_location(f.file_path, f.line))),
             Text(f"{f.confidence * 100:.0f}%"),
             Text(" ".join(flags) if flags else "\u2014"),
         )
@@ -425,9 +425,9 @@ class FindingsPane(Vertical):
         copier = getattr(self.app, "copy_to_clipboard", None)
         if callable(copier):
             copier(location)
-            self.notify(Text(f"Copied {location}"), title="Findings")
+            self.notify(Text(f"Copied {strip_control_chars(location)}"), title="Findings")
         else:  # pragma: no cover - headless fallback
-            self.notify(Text(location), title="Findings")
+            self.notify(Text(strip_control_chars(location)), title="Findings")
 
 
 __all__ = ["FindingsPane"]

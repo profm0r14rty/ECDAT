@@ -32,6 +32,7 @@ from textual.widgets.selection_list import Selection
 
 from ecdat.services import exporters
 from ecdat.services.scanner import ScanOutcome
+from ecdat.ui.theme import strip_control_chars
 
 # Widget ids.
 _DIR_ID = "export-dir"
@@ -207,7 +208,7 @@ class ExportScreen(ModalScreen[Optional[List[Path]]]):
     def _show_error(self, message: str) -> None:
         """Render an error line; the dialog stays open."""
         widget = self.query_one(f"#{_ERROR_ID}", Static)
-        widget.update(Text(message, style="bold red"))
+        widget.update(Text(strip_control_chars(message), style="bold red"))
         widget.display = True
 
     def _hide_error(self) -> None:

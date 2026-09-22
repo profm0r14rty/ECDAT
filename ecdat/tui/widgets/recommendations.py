@@ -16,7 +16,7 @@ from textual.widgets import DataTable, Static
 
 from ecdat.services.viewmodel import ScanVM
 from ecdat.ui.render import risk_chip
-from ecdat.ui.theme import PALETTE, RISK_INDEX
+from ecdat.ui.theme import PALETTE, RISK_INDEX, strip_control_chars
 
 _NO_RECOMMENDATION = "(none)"
 
@@ -122,11 +122,11 @@ class RecommendationsPane(Horizontal):
             # All dynamic/untrusted strings wrapped in Text(…, style=Style())
             # to disable Rich markup parsing (attacker-controlled repo content).
             table.add_row(
-                Text(rec_key, style=Style()),
+                Text(strip_control_chars(rec_key), style=Style()),
                 Text(str(len(group)), style=Style()),
                 risk_chip(worst_level),
-                Text(replaces, style=Style()),
-                Text(fips, style=Style()),
+                Text(strip_control_chars(replaces), style=Style()),
+                Text(strip_control_chars(fips), style=Style()),
                 key=row_key,
             )
 
@@ -164,7 +164,7 @@ class RecommendationsPane(Horizontal):
 
         text = Text()
         for f in files[:20]:
-            text.append(Text(f, style=Style()))
+            text.append(Text(strip_control_chars(f), style=Style()))
             text.append("\n")
 
         remaining = len(files) - 20

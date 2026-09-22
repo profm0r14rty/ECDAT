@@ -30,7 +30,7 @@ from ecdat.services.settings import load_settings
 from ecdat.tui.screens.home import HomeScreen
 from ecdat.tui.widgets.art_view import ArtView
 from ecdat.ui import motion
-from ecdat.ui.theme import PALETTE
+from ecdat.ui.theme import PALETTE, strip_control_chars
 from ecdat_core.progress import ScanCancelled, ScanProgress
 
 MAX_UPDATES_PER_SECOND = 20
@@ -109,7 +109,7 @@ class ScanScreen(Screen[None]):
 
     def on_mount(self) -> None:
         self.query_one("#scan-title", Static).update(
-            Text(f"Scanning {self._label or self._target}")
+            Text(strip_control_chars(f"Scanning {self._label or self._target}"))
         )
 
         self.query_one("#scan-error", Static).display = False
@@ -309,7 +309,7 @@ class ScanScreen(Screen[None]):
         self.query_one("#scan-counters", Static).update(counters)
 
         if ev.message:
-            self.query_one("#scan-log", RichLog).write(ev.message)
+            self.query_one("#scan-log", RichLog).write(strip_control_chars(ev.message))
 
         self._render_stages()
 
@@ -341,10 +341,10 @@ class ScanScreen(Screen[None]):
         self._stop_spinner()
 
         content = Text()
-        content.append(error.user_message, style="bold")
+        content.append(strip_control_chars(error.user_message), style="bold")
         if error.hint:
             content.append("\n\n")
-            content.append(Text(error.hint, style="dim"))
+            content.append(Text(strip_control_chars(error.hint), style="dim"))
 
         panel = Panel(content, title="Scan Error", border_style=PALETTE.critical)
         error_widget = self.query_one("#scan-error", Static)

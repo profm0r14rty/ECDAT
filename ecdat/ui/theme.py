@@ -13,6 +13,8 @@ Public API:
     - :data:`PALETTE` / :class:`Palette` — the frozen colour palette.
     - :data:`RISK_ORDER`, :data:`RISK_COLORS`, :data:`RISK_LABELS` — risk
       level metadata.
+    - :func:`strip_control_chars` — neutralise terminal control/escape bytes in
+      attacker-controlled strings (the untrusted-content boundary).
     - :func:`hex_to_rgb`, :func:`rgb_to_hex`, :func:`lerp_hex`,
       :func:`gradient` — colour maths.
     - :func:`rich_theme` — build the Rich :class:`~rich.theme.Theme`.
@@ -87,6 +89,56 @@ RISK_LABELS: dict[str, str] = {
 }
 
 RISK_INDEX: dict[str, int] = {level: i for i, level in enumerate(RISK_ORDER)}
+
+
+# ---------------------------------------------------------------------------
+# Untrusted-content sanitisation
+# ---------------------------------------------------------------------------
+
+# Control characters to drop: every C0 code point (0x00–0x1F) and every C1
+# code point (0x80–0x9F), except TAB (0x09) and LINE FEED (0x0A) which are
+# legitimate whitespace.  Carriage return (0x0D) is a C0 control and is
+# therefore dropped.  Removing ESC (0x1B) neutralises the entire ANSI/CSI/OSC/
+# DCS escape family in one go — every escape sequence starts with ESC, so no
+# regex matching on sequence shapes is required.
+_CONTROL_CHARS = frozenset(
+    chr(cp)
+    for cp in list(range(0x00, 0x20)) + list(range(0x80, 0xA0))
+    if cp not in (0x09, 0x0A)
+)
+
+
+def strip_control_chars(s: str) -> str:
+    """Remove terminal control characters from an attacker-controlled string.
+
+    This is the **untrusted-content boundary** for the presentation layer:
+    file paths, matched snippets, algorithm/library names, repo names and URLs
+    from scanned repositories are attacker-controlled and must never carry raw
+    control bytes into a terminal, an HTML document, or a Markdown file.
+
+    Removed: every C0 control character (``0x00``–``0x1F``) and every C1
+    control character (``0x80``–``0x9F``), except TAB (``\\t``) and LINE FEED
+    (``\\n``), which are legitimate whitespace.  Carriage return (``\\r``) is a
+    C0 control and is dropped entirely.
+
+    Because ESC (``0x1B``) is removed, the whole ANSI escape family — CSI
+    (``ESC [``), OSC (``ESC ]``, DCS (``ESC P``) — and the bare BEL (``0x07``)
+    used by OSC-8 hyperlinks are all neutralised; no regex matching on escape
+    sequences is needed.
+
+    Printable Unicode (accented letters, box-drawing characters, emoji, etc.)
+    is left untouched.
+
+    Args:
+        s: The string to sanitise.
+
+    Returns:
+        The sanitised string.  Returns the input unchanged when it contains no
+        control characters.
+    """
+    if not s or not any(ch in _CONTROL_CHARS for ch in s):
+        return s
+    return "".join(ch for ch in s if ch not in _CONTROL_CHARS)
 
 
 # ---------------------------------------------------------------------------
@@ -233,6 +285,7 @@ __all__ = [
     "RISK_LABELS",
     "RISK_INDEX",
     "MINT_GRADIENT",
+    "strip_control_chars",
     "hex_to_rgb",
     "rgb_to_hex",
     "lerp_hex",

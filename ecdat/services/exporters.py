@@ -17,6 +17,7 @@ from pathlib import Path
 from ecdat_core.cbom_export import export_cbom, export_summary
 from ecdat_core.models import Detection, RiskAssessment, ScanResult
 from ecdat.services.viewmodel import ScanVM
+from ecdat.ui.theme import strip_control_chars
 
 # ---------------------------------------------------------------------------
 # Markdown safe-string helpers
@@ -29,7 +30,13 @@ def _md_escape(text: str) -> str:
     Replaces ``|`` with ``\\|``, newlines with ``<br>``, and backslash-escapes
     leading characters that would be interpreted as Markdown block markers
     (``#``, ``>``, ``-``, ``*``, ``+``).
+
+    As defense in depth the value is first passed through
+    :func:`~ecdat.ui.theme.strip_control_chars`, so a raw escape byte in
+    attacker-controlled content can never reach a terminal that later *cat* s
+    the report.
     """
+    text = strip_control_chars(text)
     text = text.replace("\\", "\\\\")
     text = text.replace("|", "\\|")
     text = text.replace("\r\n", "<br>")
@@ -218,7 +225,8 @@ def export_html(result: ScanResult) -> str:
 
     The output contains **zero ``<script>`` elements**, a Content-Security-Policy
     ``<meta>`` tag, and all styling is inline CSS.  Every user-controlled value
-    is escaped via :func:`html.escape` with ``quote=True``.
+    is passed through :func:`~ecdat.ui.theme.strip_control_chars` and then
+    escaped via :func:`html.escape` with ``quote=True``.
 
     Args:
         result: The scan result to export.
@@ -226,8 +234,15 @@ def export_html(result: ScanResult) -> str:
     Returns:
         A complete HTML document string.
     """
-    esc = _html.escape
-    quote_esc = lambda s: _html.escape(s, quote=True)
+
+    def _clean(s: str) -> str:
+        return strip_control_chars(s)
+
+    def esc(s: str) -> str:
+        return _html.escape(_clean(s))
+
+    def quote_esc(s: str) -> str:
+        return _html.escape(_clean(s), quote=True)
 
     risk_counts: dict[str, int] = {
         "critical": 0,

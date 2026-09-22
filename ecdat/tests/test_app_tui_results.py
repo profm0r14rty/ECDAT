@@ -20,7 +20,7 @@ from ecdat.tui.widgets.priority_list import PriorityList
 from ecdat.tui.widgets.risk_chart import RiskChart
 from ecdat.tui.widgets.stat_card import StatCard
 from ecdat.ui.art_static import CRIT_LOCK, SAFE_LOCK, WARN_LOCK, emblem_for, headline_for, verdict
-from ecdat.ui.theme import RISK_ORDER
+from ecdat.ui.theme import RISK_ORDER, strip_control_chars
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from tui_helpers import wait_until  # noqa: E402
@@ -264,4 +264,7 @@ async def test_hostile_target_is_not_markup() -> None:
         app.push_screen(ResultsScreen(outcome))
         await pilot.pause()
         meta = _plain(app.screen.query_one("#result-meta", Static))
-        assert hostile in meta
+        # The markup-shaped text appears literally; the raw ESC byte is stripped
+        # at the untrusted-content boundary so no ANSI escape can reach the TUI.
+        assert strip_control_chars(hostile) in meta
+        assert "\x1b" not in meta

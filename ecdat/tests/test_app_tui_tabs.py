@@ -21,6 +21,7 @@ from ecdat.tui.screens.results import ResultsScreen
 from ecdat.tui.widgets.file_tree import FileTreePane
 from ecdat.tui.widgets.findings_table import FindingsPane
 from ecdat.tui.widgets.recommendations import RecommendationsPane
+from ecdat.ui.theme import strip_control_chars
 from ecdat_core.models import Detection, Recommendation, RiskAssessment, ScanResult
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -420,8 +421,11 @@ async def test_hostile_directory_names_render_literally() -> None:
         tree = screen.query_one("#file-tree-pane", FileTreePane)
 
         labels = [node.label.plain for node in tree.root.children]
-        assert any(HOSTILE_DIR in label for label in labels)
-        assert HOSTILE in tree.root.label.plain
+        # Markup-shaped names survive literally, but the raw ESC byte is stripped
+        # at the untrusted-content boundary.
+        assert any(strip_control_chars(HOSTILE_DIR) in label for label in labels)
+        assert strip_control_chars(HOSTILE) in tree.root.label.plain
+        assert "\x1b" not in tree.root.label.plain
 
 
 @pytest.mark.asyncio
@@ -440,4 +444,5 @@ async def test_hostile_recommendation_renders_literally() -> None:
         table = pane.query_one("#recs-table", DataTable)
         cells = table.get_row_at(0)
         joined = "".join(getattr(c, "plain", str(c)) for c in cells)
-        assert HOSTILE in joined
+        assert strip_control_chars(HOSTILE) in joined
+        assert "\x1b" not in joined
