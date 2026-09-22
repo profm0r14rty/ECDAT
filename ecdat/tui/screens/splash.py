@@ -8,10 +8,12 @@ The banner scrambles through hex glyphs and resolves left-to-right over
 from __future__ import annotations
 
 import time
+from typing import Optional
 
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.screen import Screen
+from textual.timer import Timer
 from textual.widgets import Static
 
 from ecdat.services.settings import load_settings
@@ -28,6 +30,13 @@ _SCRAMBLE_ALPHABET = "0123456789ABCDEF#$%&@"
 class SplashScreen(Screen[None]):
     """A short decrypt-reveal intro that auto-dismisses."""
 
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        # Both the auto-dismiss timer and a manual key/click can ask to leave;
+        # whichever runs first wins, and every later path becomes a no-op.
+        self._dismissed = False
+        self._auto_timer: Optional[Timer] = None
+
     def compose(self) -> ComposeResult:
         with Vertical(id="splash-column"):
             yield Static("", id="splash-art")
@@ -35,12 +44,12 @@ class SplashScreen(Screen[None]):
 
     def on_mount(self) -> None:
         if not motion.animations_enabled(load_settings().reduce_motion):
-            self.dismiss(None)
+            self._dismiss()
             return
         self._started = time.monotonic()
         self._frame = 0
         self.set_interval(_TICK_SECONDS, self._tick)
-        self.set_timer(_AUTO_DISMISS_SECONDS, self._auto_dismiss)
+        self._auto_timer = self.set_timer(_AUTO_DISMISS_SECONDS, self._auto_dismiss)
 
     def _lines(self) -> tuple[str, ...]:
         encoding = getattr(self.app.console, "encoding", None) or ""
@@ -62,16 +71,38 @@ class SplashScreen(Screen[None]):
         if progress >= 1.0:
             tagline.update(f"{TAGLINE}\n{SUBLINE}")
 
+    def _stop_auto_timer(self) -> None:
+        """Cancel the pending auto-dismiss timer, if one is armed."""
+        timer = self._auto_timer
+        if timer is not None:
+            timer.stop()
+            self._auto_timer = None
+
+    def _dismiss(self) -> None:
+        """Leave the splash exactly once.
+
+        The timer and a manual key/click can both request dismissal for the
+        same screen; the first one to run wins and every later call returns
+        immediately.  A second ``dismiss()`` would re-resolve an already
+        settled result future (``InvalidStateError``) or pop an unrelated
+        screen, so the guard is not merely defensive.
+        """
+        if self._dismissed:
+            return
+        self._dismissed = True
+        self._stop_auto_timer()
+        self.dismiss(None)
+
     def _auto_dismiss(self) -> None:
         if self.is_current:
-            self.dismiss(None)
+            self._dismiss()
 
     def on_key(self, event) -> None:
         event.stop()
-        self.dismiss(None)
+        self._dismiss()
 
     def on_click(self) -> None:
-        self.dismiss(None)
+        self._dismiss()
 
 
 __all__ = ["SplashScreen"]
