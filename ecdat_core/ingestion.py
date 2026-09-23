@@ -26,6 +26,7 @@ Public API:
 
 from __future__ import annotations
 
+import fnmatch
 import ipaddress
 import os
 import re
@@ -33,7 +34,7 @@ import shutil
 import socket
 import subprocess
 import tempfile
-from collections.abc import Iterator
+from collections.abc import Iterator, Sequence
 from pathlib import Path
 from urllib.parse import urlparse
 
@@ -43,6 +44,8 @@ from ecdat_core.detector import detect_language
 _SKIP_DIRS: frozenset[str] = frozenset(
     {
         ".git",
+        ".hg",
+        ".svn",
         "node_modules",
         "venv",
         ".venv",
@@ -51,11 +54,23 @@ _SKIP_DIRS: frozenset[str] = frozenset(
         "build",
         "target",
         ".next",
+        ".tox",
+        ".nox",
+        ".mypy_cache",
+        ".pytest_cache",
+        ".ruff_cache",
+        ".idea",
+        ".vscode",
+        "site-packages",
+        ".nuxt",
     }
 )
 
 # Maximum file size in bytes — files larger than this are silently skipped.
 _MAX_FILE_SIZE = 2 * 1024 * 1024  # 2 MB
+
+# Binary detection: if the first 8192 bytes contain a NUL, treat as binary.
+_BINARY_CHECK_BYTES = 8192
 
 # How many directory levels deep to scan for manifest files.
 _MANIFEST_DEPTH = 3
@@ -239,31 +254,76 @@ def _max_repo_size_bytes() -> int:
     return mb * 1024 * 1024
 
 
+# ---------------------------------------------------------------------------
+# Inline helpers (pre-ingest)
+# ---------------------------------------------------------------------------
+
+
+def _directory_contains_pyvenv_cfg(dirpath: str) -> bool:
+    """Return ``True`` if *dirpath* contains a ``pyvenv.cfg`` file."""
+    return os.path.isfile(os.path.join(dirpath, "pyvenv.cfg"))
+
+
+def _is_binary_file(file_path: str) -> bool:
+    """Return ``True`` if *file_path* looks non-text / binary.
+
+    Two checks: a NUL byte (\\x00) in the first 8192 bytes, or the chunk
+    cannot be decoded as strict UTF-8 *and* would be mostly replacement
+    characters (≥10 %) when decoded with ``errors="replace"``.  That
+    preserves files with a lone stray byte in otherwise valid UTF-8.
+    """
+    try:
+        with open(file_path, "rb") as fh:
+            chunk = fh.read(_BINARY_CHECK_BYTES)
+    except OSError:
+        return True
+    if b"\x00" in chunk:
+        return True
+    try:
+        chunk.decode("utf-8")
+    except UnicodeDecodeError:
+        repaired = chunk.decode("utf-8", errors="replace")
+        if repaired.count("\ufffd") >= len(repaired) * 0.10:
+            return True
+    return False
+
+
+def _matches_exclude(
+    relative: str, dirnames: list[str], patterns: Sequence[str]
+) -> bool:
+    """Check if a relative path or any of its parent dirs matches an exclude glob."""
+    for pat in patterns:
+        if fnmatch.fnmatch(relative, pat):
+            return True
+        for d in dirnames:
+            if fnmatch.fnmatch(d, pat):
+                return True
+    return False
+
+
 def ingest_local_directory(
-    path: str, *, sandboxed: bool = True
+    path: str, *, sandboxed: bool = True, exclude: Sequence[str] = ()
 ) -> Iterator[tuple[str, str, str]]:
     """Walk *path* and yield source files suitable for cryptographic scanning.
 
-    Traverses the directory tree rooted at *path*, skipping well-known
-    non-source directories (``.git``, ``node_modules``, ``venv``, etc.)
-    and any file larger than 2 MB.  For each remaining file whose extension
-    is recognised by :func:`~ecdat_core.detector.detect_language`, the file
-    content is read and yielded together with its path and detected language.
-
-    Files that cannot be decoded as UTF-8 are silently skipped so that a
-    single binary file does not abort the entire scan.
+    Traverses the directory tree, skipping well-known non-source directories,
+    directories containing ``pyvenv.cfg``, symlinked files outside the scan
+    root, binary files, files >2 MiB, and files matching *exclude* globs.
+    Content is read as UTF-8 with ``errors="replace"`` so a lone invalid byte
+    does not abort the scan.
 
     Args:
         path: Root directory to walk.
         sandboxed: When ``True`` (default) *path* must resolve inside
             ``SCAN_WORKSPACE_ROOT`` (see :func:`validate_local_path`).  Pass
             ``False`` only for scanner-created temporary clone directories
-            (see :func:`~ecdat_core.cli.run_scan`) — never for user-supplied
-            paths.
+            — never for user-supplied paths.
+        exclude: ``fnmatch`` glob patterns.  A file is excluded when its
+            POSIX-style relative path **or** any parent directory name
+            matches a pattern.  Directory matches also prune ``os.walk``.
 
     Yields:
-        Tuples of ``(file_path, content, language)`` for each successfully
-        read source file.
+        Tuples of ``(file_path, content, language)``.
 
     Raises:
         FileNotFoundError: If *path* does not exist or is not a directory.
@@ -276,11 +336,26 @@ def ingest_local_directory(
     if sandboxed:
         validate_local_path(path)
 
+    root_resolved = root.resolve()
+
     for dirpath, dirnames, filenames in os.walk(root):
         # Prune skipped directories **in-place** so os.walk does not descend.
+        # Also prune any directory containing pyvenv.cfg.
         dirnames[:] = [
-            d for d in dirnames if d not in _SKIP_DIRS
+            d
+            for d in dirnames
+            if d not in _SKIP_DIRS
+            and not _directory_contains_pyvenv_cfg(os.path.join(dirpath, d))
         ]
+
+        # Exclude directory-level matches: if a dir name matches an exclude
+        # pattern, prune it before descending.
+        if exclude:
+            dirnames[:] = [
+                d
+                for d in dirnames
+                if not any(fnmatch.fnmatch(d, pat) for pat in exclude)
+            ]
 
         for filename in filenames:
             file_path = os.path.join(dirpath, filename)
@@ -292,13 +367,37 @@ def ingest_local_directory(
             except OSError:
                 continue
 
+            # Exclude file-level matches: compute POSIX relative path.
+            if exclude:
+                try:
+                    rel = os.path.relpath(file_path, root)
+                except ValueError:
+                    rel = file_path
+                relative = rel.replace(os.sep, "/")
+                dir_comps = os.path.dirname(relative).split("/")
+                dir_list = [d for d in dir_comps if d]
+                if _matches_exclude(relative, dir_list, exclude):
+                    continue
+
+            # Skip symlinked files whose realpath is outside the scan root.
+            try:
+                real = os.path.realpath(file_path)
+                if real != file_path and not _is_within(root_resolved, Path(real)):
+                    continue
+            except OSError:
+                continue
+
+            # Skip binary-looking files.
+            if _is_binary_file(file_path):
+                continue
+
             language = detect_language(file_path)
             if language is None:
                 continue
 
             try:
-                content = Path(file_path).read_text(encoding="utf-8")
-            except (UnicodeDecodeError, OSError):
+                content = Path(file_path).read_text(encoding="utf-8", errors="replace")
+            except OSError:
                 continue
 
             yield (file_path, content, language)

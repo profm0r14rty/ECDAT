@@ -1,5 +1,11 @@
 # ecdat
 
+[![PyPI](https://img.shields.io/pypi/v/ecdat?color=3ddc97&label=PyPI)](https://pypi.org/project/ecdat/)
+[![Python](https://img.shields.io/pypi/pyversions/ecdat?color=3ddc97)](https://pypi.org/project/ecdat/)
+[![Downloads](https://img.shields.io/pypi/dm/ecdat?color=3ddc97&label=downloads)](https://pypi.org/project/ecdat/)
+[![License: MIT](https://img.shields.io/github/license/profm0r14rty/ECDAT?color=3ddc97)](https://github.com/profm0r14rty/ECDAT/blob/main/LICENSE)
+[![SIH 2026](https://img.shields.io/badge/SIH%202026%20Internals-1st%20Place%20🏆-gold)](https://github.com/profm0r14rty/ECDAT)
+
 **ECDAT** is a [CycloneDX](https://cyclonedx.org/) **Cryptography Bill of
 Materials (CBOM) scanner for post-quantum readiness**. One command finds the
 cryptographic artefacts in a codebase — RSA, ECC, DH, DSA, MD5, SHA-1, DES,

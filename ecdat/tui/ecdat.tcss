@@ -1,0 +1,587 @@
+/* ECDAT TUI — base stylesheet.
+   Colours come from the active Textual theme (registered in ecdat/tui/theme.py);
+   risk colours are exposed as $risk-critical … $risk-safe. */
+
+Screen {
+    background: $background;
+    color: $foreground;
+}
+
+Header {
+    background: $panel;
+    color: $foreground;
+}
+
+Footer {
+    background: $panel;
+    color: $foreground;
+}
+
+.panel {
+    border: round $primary;
+    padding: 0 1;
+    background: $surface;
+}
+
+.muted {
+    color: $foreground-muted;
+}
+
+.accent {
+    color: $accent;
+}
+
+.risk-critical {
+    color: $risk-critical;
+}
+
+.risk-high {
+    color: $risk-high;
+}
+
+.risk-medium {
+    color: $risk-medium;
+}
+
+.risk-low {
+    color: $risk-low;
+}
+
+.risk-safe {
+    color: $risk-safe;
+}
+
+ArtView {
+    width: 100%;
+    height: 100%;
+}
+
+BannerWidget {
+    width: auto;
+    height: auto;
+}
+
+SplashScreen {
+    align: center middle;
+    background: $background;
+}
+
+#splash-art {
+    width: auto;
+    height: auto;
+}
+
+#splash-tagline {
+    width: auto;
+    height: auto;
+    padding: 1 0 0 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Scan screen (Phase 83)                                             */
+/* ------------------------------------------------------------------ */
+
+#scan-body {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+}
+
+#scan-title {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+    text-style: bold;
+    color: $accent;
+}
+
+#scan-left {
+    width: 34;
+    height: 1fr;
+    padding: 0 2 0 0;
+}
+
+#scan-torus {
+    width: 100%;
+    height: 14;
+}
+
+#scan-counters {
+    width: 100%;
+    height: auto;
+    padding: 1 0 0 0;
+    color: $foreground-muted;
+}
+
+#scan-right {
+    width: 1fr;
+    height: 1fr;
+}
+
+#scan-stages {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#scan-stages Static {
+    width: 100%;
+    height: 1;
+}
+
+#scan-progress {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#scan-log {
+    width: 100%;
+    height: 1fr;
+    border: round $primary;
+    background: $surface;
+}
+
+#scan-error {
+    width: 100%;
+    height: auto;
+    padding: 1 0;
+}
+
+/* ------------------------------------------------------------------ */
+/* Results screen (Phase 84)                                          */
+/* ------------------------------------------------------------------ */
+
+#results-tabs {
+    width: 100%;
+    height: 1fr;
+}
+
+/* TabPane/ContentSwitcher default to height:auto, which would collapse the
+   scrolling overview body to zero height. */
+#results-tabs ContentSwitcher {
+    height: 1fr;
+}
+
+#results-tabs TabPane {
+    height: 1fr;
+}
+
+#overview-body {
+    width: 100%;
+    height: 1fr;
+    padding: 1 2;
+}
+
+#result-top {
+    width: 100%;
+    height: auto;
+}
+
+#result-emblem {
+    width: 21;
+    height: auto;
+    padding: 0 1 0 0;
+}
+
+#result-right {
+    width: 1fr;
+    height: auto;
+}
+
+#result-headline {
+    width: 100%;
+    height: auto;
+    text-style: bold;
+}
+
+#result-meta {
+    width: 100%;
+    height: auto;
+    padding: 1 0 0 0;
+    color: $foreground-muted;
+}
+
+#stats-grid {
+    width: 100%;
+    height: auto;
+    grid-size: 4 2;
+    grid-gutter: 1 2;
+    padding: 1 0;
+}
+
+.stat-card {
+    width: 1fr;
+    height: auto;
+    border: round $primary;
+    padding: 0 1;
+}
+
+.stat-card Digits {
+    width: 100%;
+    height: auto;
+    text-align: center;
+}
+
+.stat-label {
+    width: 100%;
+    height: auto;
+    text-align: center;
+    color: $foreground-muted;
+}
+
+#risk-chart {
+    width: 100%;
+    height: auto;
+    padding: 1 0 0 0;
+}
+
+#priority-list {
+    width: 100%;
+    height: auto;
+    max-height: 12;
+    border: round $primary;
+}
+
+#results-empty {
+    width: 100%;
+    height: auto;
+    padding: 2 4;
+}
+
+/* ------------------------------------------------------------------ */
+/* Findings tab (Phase 85)                                            */
+/* ------------------------------------------------------------------ */
+
+#findings-pane {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+}
+
+#findings-controls {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+    align: left middle;
+}
+
+.chip {
+    width: auto;
+    height: 1;
+    padding: 0 1 0 0;
+}
+
+#findings-search {
+    width: 1fr;
+    max-width: 46;
+    height: 3;
+    margin: 0 1;
+}
+
+#findings-showing {
+    width: auto;
+    height: 1;
+    color: $foreground-muted;
+    padding: 0 0 0 1;
+}
+
+#findings-split {
+    width: 100%;
+    height: 1fr;
+}
+
+/* Wide layout: table on the left, detail on the right. */
+#findings {
+    width: 3fr;
+    height: 100%;
+    border: round $primary;
+    background: $surface;
+}
+
+#finding-detail {
+    width: 2fr;
+    height: 100%;
+    padding: 0 0 0 1;
+    border: round $primary;
+    background: $surface;
+}
+
+/* Narrow layout: stack the table above the detail. */
+#findings-split.-narrow {
+    layout: vertical;
+}
+
+#findings-split.-narrow #findings {
+    width: 100%;
+    height: 1fr;
+}
+
+#findings-split.-narrow #finding-detail {
+    width: 100%;
+    height: 1fr;
+    padding: 1 0 0 0;
+}
+
+#detail-header {
+    width: 100%;
+    height: auto;
+    text-style: bold;
+}
+
+#detail-location {
+    width: 100%;
+    height: auto;
+    color: $foreground-muted;
+    padding: 0 0 1 0;
+}
+
+#detail-flags {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#detail-why {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+.mosca-timeline {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#detail-urgency {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#detail-recommendation {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#detail-snippet {
+    width: 100%;
+    height: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Recommendations tab (Phase 86)                                     */
+/* ------------------------------------------------------------------ */
+
+#recs-pane {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+}
+
+#recs-table {
+    width: 3fr;
+    height: 100%;
+    border: round $primary;
+    background: $surface;
+}
+
+#recs-detail {
+    width: 2fr;
+    height: 100%;
+    padding: 0 0 0 1;
+    border: round $primary;
+    background: $surface;
+}
+
+#recs-files {
+    width: 100%;
+    height: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Files tab (Phase 86)                                               */
+/* ------------------------------------------------------------------ */
+
+#file-tree-pane {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+    border: round $primary;
+    background: $surface;
+}
+
+/* ------------------------------------------------------------------ */
+/* Export modal (Phase 87)                                            */
+/* ------------------------------------------------------------------ */
+
+ExportScreen {
+    align: center middle;
+}
+
+#export-body {
+    width: 72;
+    height: auto;
+    max-height: 90%;
+    padding: 1 2;
+}
+
+#export-title {
+    width: 100%;
+    height: auto;
+    text-style: bold;
+    color: $accent;
+}
+
+#export-note {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+    color: $foreground-muted;
+}
+
+#export-formats {
+    width: 100%;
+    height: auto;
+    max-height: 10;
+    margin: 0 0 1 0;
+}
+
+#export-dir-label {
+    width: 100%;
+    height: auto;
+    padding: 0 0 0 0;
+}
+
+#export-dir {
+    width: 100%;
+    height: 3;
+}
+
+#export-error {
+    width: 100%;
+    height: auto;
+    padding: 1 0 0 0;
+}
+
+#export-buttons {
+    width: 100%;
+    height: auto;
+    align: right middle;
+    padding: 1 0 0 0;
+}
+
+#export-buttons Button {
+    margin: 0 0 0 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* History screen (Phase 87)                                          */
+/* ------------------------------------------------------------------ */
+
+#history-body {
+    width: 100%;
+    height: 100%;
+    padding: 1 2;
+}
+
+#history-title {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+    text-style: bold;
+    color: $accent;
+}
+
+#history-table {
+    width: 100%;
+    height: 1fr;
+    border: round $primary;
+    background: $surface;
+}
+
+#history-empty {
+    width: 100%;
+    height: auto;
+    padding: 2 2;
+    color: $foreground-muted;
+}
+
+#history-confirm {
+    width: 56;
+    height: auto;
+    padding: 1 2;
+}
+
+#history-confirm-target {
+    width: 100%;
+    height: auto;
+    padding: 0 0 1 0;
+}
+
+#history-confirm-buttons {
+    width: 100%;
+    height: auto;
+    align: right middle;
+}
+
+#history-confirm-buttons Button {
+    margin: 0 0 0 1;
+}
+
+/* ------------------------------------------------------------------ */
+/* Help overlay (Phase 88)                                            */
+/* ------------------------------------------------------------------ */
+
+HelpScreen {
+    align: center middle;
+}
+
+#help-body {
+    width: 72;
+    height: auto;
+    max-height: 90%;
+    padding: 1 2;
+}
+
+#help-title {
+    width: 100%;
+    height: auto;
+    text-style: bold;
+    color: $accent;
+    padding: 0 0 1 0;
+}
+
+#help-content {
+    width: 100%;
+    height: auto;
+}
+
+/* ------------------------------------------------------------------ */
+/* Terminal-too-small guard (Phase 88)                                */
+/* ------------------------------------------------------------------ */
+
+TooSmallScreen {
+    align: center middle;
+    background: $background;
+}
+
+#too-small-body {
+    width: auto;
+    height: auto;
+}
+
+#too-small-message {
+    width: auto;
+    height: auto;
+    text-align: center;
+}
+
+#too-small-hint {
+    width: auto;
+    height: auto;
+    padding: 1 0 0 0;
+    text-align: center;
+}

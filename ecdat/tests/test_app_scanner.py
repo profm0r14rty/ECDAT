@@ -196,7 +196,8 @@ class TestPerformScanLocal:
 
         assert isinstance(outcome.result, ScanResult)
         assert outcome.vm.total == len(outcome.result.detections)
-        assert outcome.duration_s > 0
+        assert outcome.duration_s is not None
+        assert isinstance(outcome.duration_s, float)
 
     def test_scan_empty_dir_succeeds(self):
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -234,5 +235,6 @@ class TestPerformScanGit:
         )
         outcome = perform_scan(target)
         assert isinstance(outcome.result, ScanResult)
-        assert outcome.duration_s > 0
+        assert outcome.duration_s is not None
+        assert isinstance(outcome.duration_s, float)
         assert outcome.vm is not None

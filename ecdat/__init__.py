@@ -1,4 +1,4 @@
-"""ECDAT — Enterprise Cryptographic Discovery & Analysis Tool."""
+"""ECDAT — Enterprise Cryptographic Discovery & Analysis Tool (app layer)."""
 
 import importlib.metadata
 

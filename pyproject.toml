@@ -4,10 +4,10 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ecdat"
-version = "0.2.0"
+version = "0.3.0"
 description = "Cryptographic discovery and post-quantum readiness scanner — CLI with a gradient ASCII banner and an animated 3D globe (CBOM, CycloneDX 1.6)"
 readme = {file = "PYPI_README.md", content-type = "text/markdown"}
-requires-python = ">=3.10"
+requires-python = ">=3.12"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [
@@ -23,6 +23,7 @@ keywords = [
     "quantum",
     "sbom",
     "security",
+    "tui",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -31,8 +32,6 @@ classifiers = [
     "Intended Audience :: Information Technology",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
@@ -43,6 +42,7 @@ classifiers = [
 dependencies = [
     "pydantic>=2",
     "rich>=13.7",
+    "textual>=8.2,<9",
 ]
 
 [project.optional-dependencies]
@@ -52,6 +52,7 @@ dev = [
     "jsonschema",  # official CycloneDX 1.6 CBOM schema validation (Phase 48)
     "build",       # PEP 517 build frontend — `python -m build` (Phase 53)
     "twine",       # TestPyPI/PyPI upload tooling (Phase 53)
+    "pytest-asyncio",
 ]
 
 [project.urls]
@@ -73,6 +74,7 @@ exclude = ["*.tests", "*.tests.*", "tests", "tests.*", "backend*", "frontend*"]
 [tool.setuptools.package-data]
 ecdat_core = ["signatures.json"]
 ecdat = ["py.typed", "demo_project/**/*"]
+"ecdat.tui" = ["*.tcss"]
 
 [tool.pytest.ini_options]
 addopts = "-v -m 'not network'"

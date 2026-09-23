@@ -1,16 +1,34 @@
-"""Frozen palette, colour utilities, and Rich theme for the ECDAT app layer.
+"""Frozen palette, risk metadata, colour utilities, and the Rich theme.
 
-Colours are derived from the dashboard design tokens (``frontend/src/index.css``)
-and the shared risk palette (``frontend/src/lib/colors.ts``).  All values are
-immutable — palette is a frozen dataclass, and the module-level mappings are tuples
-or frozensets so nothing accidentally mutates the shared state.
+Colours are derived from the dashboard design tokens
+(``frontend/src/index.css``) and the shared risk palette
+(``frontend/src/lib/colors.ts``).  All values are immutable — the palette is a
+frozen dataclass and the module-level mappings are tuples/dicts that nothing
+mutates.
+
+This module is the single source of colour truth for the app layer: renderers
+map their style tokens to these colours and never hardcode hex values.
+
+Public API:
+    - :data:`PALETTE` / :class:`Palette` — the frozen colour palette.
+    - :data:`RISK_ORDER`, :data:`RISK_COLORS`, :data:`RISK_LABELS` — risk
+      level metadata.
+    - :func:`strip_control_chars` — neutralise terminal control/escape bytes in
+      attacker-controlled strings (the untrusted-content boundary).
+    - :func:`hex_to_rgb`, :func:`rgb_to_hex`, :func:`lerp_hex`,
+      :func:`gradient` — colour maths.
+    - :func:`rich_theme` — build the Rich :class:`~rich.theme.Theme`.
+    - :func:`make_console` / :func:`_ensure_utf8_streams` — thin re-exports of
+      the canonical console factory in :mod:`ecdat.ui.console` (kept here for
+      the commands that historically imported them from this module).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Optional, Tuple
 
+from rich.console import Console
 from rich.theme import Theme
 
 # ---------------------------------------------------------------------------
@@ -47,6 +65,7 @@ class Palette:
 # Singleton instance — import this everywhere.
 PALETTE = Palette()
 
+
 # ---------------------------------------------------------------------------
 # Risk metadata
 # ---------------------------------------------------------------------------
@@ -70,6 +89,57 @@ RISK_LABELS: dict[str, str] = {
 }
 
 RISK_INDEX: dict[str, int] = {level: i for i, level in enumerate(RISK_ORDER)}
+
+
+# ---------------------------------------------------------------------------
+# Untrusted-content sanitisation
+# ---------------------------------------------------------------------------
+
+# Control characters to drop: every C0 code point (0x00–0x1F) and every C1
+# code point (0x80–0x9F), except TAB (0x09) and LINE FEED (0x0A) which are
+# legitimate whitespace.  Carriage return (0x0D) is a C0 control and is
+# therefore dropped.  Removing ESC (0x1B) neutralises the entire ANSI/CSI/OSC/
+# DCS escape family in one go — every escape sequence starts with ESC, so no
+# regex matching on sequence shapes is required.
+_CONTROL_CHARS = frozenset(
+    chr(cp)
+    for cp in list(range(0x00, 0x20)) + list(range(0x80, 0xA0))
+    if cp not in (0x09, 0x0A)
+)
+
+
+def strip_control_chars(s: str) -> str:
+    """Remove terminal control characters from an attacker-controlled string.
+
+    This is the **untrusted-content boundary** for the presentation layer:
+    file paths, matched snippets, algorithm/library names, repo names and URLs
+    from scanned repositories are attacker-controlled and must never carry raw
+    control bytes into a terminal, an HTML document, or a Markdown file.
+
+    Removed: every C0 control character (``0x00``–``0x1F``) and every C1
+    control character (``0x80``–``0x9F``), except TAB (``\\t``) and LINE FEED
+    (``\\n``), which are legitimate whitespace.  Carriage return (``\\r``) is a
+    C0 control and is dropped entirely.
+
+    Because ESC (``0x1B``) is removed, the whole ANSI escape family — CSI
+    (``ESC [``), OSC (``ESC ]``, DCS (``ESC P``) — and the bare BEL (``0x07``)
+    used by OSC-8 hyperlinks are all neutralised; no regex matching on escape
+    sequences is needed.
+
+    Printable Unicode (accented letters, box-drawing characters, emoji, etc.)
+    is left untouched.
+
+    Args:
+        s: The string to sanitise.
+
+    Returns:
+        The sanitised string.  Returns the input unchanged when it contains no
+        control characters.
+    """
+    if not s or not any(ch in _CONTROL_CHARS for ch in s):
+        return s
+    return "".join(ch for ch in s if ch not in _CONTROL_CHARS)
+
 
 # ---------------------------------------------------------------------------
 # Colour helpers
@@ -145,6 +215,7 @@ MINT_GRADIENT: list[str] = gradient(
     12,
 )
 
+
 # ---------------------------------------------------------------------------
 # Rich theme
 # ---------------------------------------------------------------------------
@@ -154,7 +225,7 @@ def rich_theme() -> Theme:
     """Build a :class:`rich.theme.Theme` from the :class:`Palette`.
 
     Style names use the ``ecdat.`` prefix so they never clash with Rich's
-    built-in styles.  Usable as:
+    built-in styles.  Usable as::
 
         console = Console(theme=rich_theme())
         console.print("[ecdat.accent]hi[/]")
@@ -171,3 +242,54 @@ def rich_theme() -> Theme:
             "ecdat.safe": PALETTE.safe,
         }
     )
+
+
+# ---------------------------------------------------------------------------
+# Console factory re-exports
+#
+# The canonical implementation lives in :mod:`ecdat.ui.console` (it resolves
+# NO_COLOR / FORCE_COLOR and the colour system).  These wrappers keep the
+# historical ``ecdat.ui.theme.make_console`` import path working without
+# duplicating the logic; the import is deferred so theme.py stays importable
+# on its own (console.py imports :func:`rich_theme` from here).
+# ---------------------------------------------------------------------------
+
+
+def _ensure_utf8_streams() -> None:
+    """Reconfigure stdout/stderr to UTF-8 when possible (best-effort)."""
+    from ecdat.ui.console import _ensure_utf8_streams as _impl
+
+    _impl()
+
+
+def make_console(
+    *,
+    stderr: bool = False,
+    no_color: Optional[bool] = None,
+    width: Optional[int] = None,
+) -> Console:
+    """Create a themed Rich :class:`~rich.console.Console`.
+
+    Thin re-export of :func:`ecdat.ui.console.make_console`.
+    """
+    from ecdat.ui.console import make_console as _impl
+
+    return _impl(stderr=stderr, no_color=no_color, width=width)
+
+
+__all__ = [
+    "PALETTE",
+    "Palette",
+    "RISK_ORDER",
+    "RISK_COLORS",
+    "RISK_LABELS",
+    "RISK_INDEX",
+    "MINT_GRADIENT",
+    "strip_control_chars",
+    "hex_to_rgb",
+    "rgb_to_hex",
+    "lerp_hex",
+    "gradient",
+    "rich_theme",
+    "make_console",
+]

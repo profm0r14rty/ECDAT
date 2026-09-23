@@ -23,7 +23,7 @@ from ecdat.ui.render import (
     smooth_bar,
     summary_panel,
 )
-from ecdat.ui.theme import RISK_COLORS, RISK_LABELS
+from ecdat.ui.theme import RISK_COLORS, RISK_LABELS, strip_control_chars
 
 
 # ---------------------------------------------------------------------------
@@ -481,3 +481,161 @@ class TestSafeHelper:
         assert t.plain == "[bold red]test[/bold red]"
         # No spans should be created from markup parsing.
         assert t.style is not None  # has a Style object, even if empty
+
+    def test_safe_strips_escape_bytes(self) -> None:
+        """``_safe`` neutralises raw ESC / BEL before Text() is built."""
+        t = _safe("\x1b[31mred\x1b[0m")
+        assert "\x1b" not in t.plain
+        assert t.plain == "[31mred[0m"
+
+    def test_safe_preserves_printable_unicode(self) -> None:
+        value = "caf\u00e9 \U0001f600 \u2502 \u2588"
+        assert _safe(value).plain == value
+
+
+class TestStripControlChars:
+    """Unit tests for the untrusted-content boundary sanitizer."""
+
+    def test_removes_esc_and_bell(self) -> None:
+        assert strip_control_chars("a\x1b[31mb\x07c") == "a[31mbc"
+
+    def test_removes_c1_controls(self) -> None:
+        assert strip_control_chars("a\x9b31m\x85b") == "a31mb"
+
+    def test_drops_carriage_return(self) -> None:
+        assert strip_control_chars("a\rb") == "ab"
+
+    def test_keeps_tab_and_newline(self) -> None:
+        assert strip_control_chars("a\tb\nc") == "a\tb\nc"
+
+    def test_keeps_printable_unicode(self) -> None:
+        value = "caf\u00e9 \U0001f600 \u2502 \u2588 \u2714"
+        assert strip_control_chars(value) == value
+
+    def test_empty_string(self) -> None:
+        assert strip_control_chars("") == ""
+
+    def test_removes_every_c0_except_tab_newline(self) -> None:
+        raw = "".join(chr(c) for c in range(0x20))
+        assert strip_control_chars(raw) == "\t\n"
+
+    def test_removes_every_c1(self) -> None:
+        raw = "".join(chr(c) for c in range(0x80, 0xA0))
+        assert strip_control_chars(raw) == ""
+
+
+class TestReportControlByteSafety:
+    """The full pretty report must carry zero raw control bytes."""
+
+    HOSTILE_OSC8 = "\x1b]8;;https://evil.example\x07click\x1b]8;;\x07"
+    HOSTILE_OSC2 = "\x1b]2;owned title\x07"
+    HOSTILE_BELL = "ding\x07dong"
+    HOSTILE_C1 = "c1:\x9b31m\x85x"
+
+    def _vm_with(self, value: str) -> ScanVM:
+        return _make_vm([
+            _make_finding(
+                file_path=f"src/{value}.py",
+                algorithm=value,
+                family=value,
+                rationale=value,
+                recommended=value,
+                snippet=value,
+            ),
+        ], target=value)
+
+    def _render(self, vm: ScanVM) -> str:
+        return _render_to_string(scan_report(vm, limit=50))
+
+    @pytest.mark.parametrize(
+        "payload",
+        [HOSTILE_OSC8, HOSTILE_OSC2, HOSTILE_BELL, HOSTILE_C1],
+        ids=["osc8", "osc2", "bell", "c1"],
+    )
+    def test_no_raw_control_bytes(self, payload: str) -> None:
+        output = self._render(self._vm_with(payload))
+        assert "\x1b" not in output
+        assert "\x07" not in output
+        bad = [c for c in output if ord(c) < 0x20 and c not in "\t\n"]
+        assert not bad, f"control bytes {[hex(ord(c)) for c in bad]} leaked"
+        c1 = [c for c in output if 0x80 <= ord(c) <= 0x9F]
+        assert not c1
+
+    def test_unicode_survives_report(self) -> None:
+        value = "caf\u00e9 \U0001f600 \u2502 \u2588"
+        output = self._render(self._vm_with(value))
+        assert value in output
+
+
+class TestExportControlByteSafety:
+    """Markdown and HTML exports must carry zero raw control bytes."""
+
+    HOSTILE = "\x1b]8;;https://evil.example\x07click\x1b]8;;\x07\x1b[31m\x9b"
+
+    def _result(self) -> "ScanResult":
+        from ecdat_core.models import Detection, Recommendation, RiskAssessment, ScanResult
+
+        detection = Detection(
+            id="d1",
+            file_path=f"src/{self.HOSTILE}.py",
+            line_number=5,
+            matched_text=self.HOSTILE,
+            asset_type="algorithm",
+            algorithm_family=self.HOSTILE,
+            key_size_bits=2048,
+            quantum_vulnerable=True,
+            classically_broken=False,
+            confidence=0.9,
+            language="python",
+            detection_method="regex",
+        )
+        return ScanResult(
+            scan_id=self.HOSTILE,
+            target=self.HOSTILE,
+            detections=[detection],
+            risk_assessments=[
+                RiskAssessment(
+                    detection_id="d1",
+                    migration_time_years=3.0,
+                    shelf_life_years=5.0,
+                    threat_horizon_years=5.0,
+                    urgency_ratio=1.5,
+                    risk_level="critical",
+                    mosca_violation=True,
+                )
+            ],
+            recommendations=[
+                Recommendation(
+                    detection_id="d1",
+                    recommended_algorithm=self.HOSTILE,
+                    fips_reference=self.HOSTILE,
+                    rationale=self.HOSTILE,
+                    latency_note="",
+                    migration_note="",
+                )
+            ],
+            scanned_at="2026-09-22T12:00:00+00:00",
+            files_scanned=1,
+        )
+
+    @pytest.mark.parametrize("fmt", ["markdown", "html"])
+    def test_no_raw_control_bytes(self, fmt: str) -> None:
+        from ecdat.services.exporters import export_html, export_markdown
+
+        doc = export_markdown(self._result()) if fmt == "markdown" else export_html(self._result())
+        assert "\x1b" not in doc
+        assert "\x07" not in doc
+        c1 = [c for c in doc if 0x80 <= ord(c) <= 0x9F]
+        assert not c1
+
+    @pytest.mark.parametrize("fmt", ["markdown", "html"])
+    def test_unicode_survives_export(self, fmt: str) -> None:
+        from ecdat.services.exporters import export_html, export_markdown
+
+        value = "caf\u00e9 \U0001f600 \u2502 \u2588"
+        result = self._result()
+        result.target = value
+        result.detections[0].file_path = f"{value}.py"
+        result.detections[0].algorithm_family = value
+        doc = export_markdown(result) if fmt == "markdown" else export_html(result)
+        assert value in doc

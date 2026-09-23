@@ -1,0 +1,224 @@
+name: ecdat-ci
+
+on:
+  push:
+    branches: [main, "feat/**", "release/**"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ecdat-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (${{ matrix.os }}, python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.experimental == true }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.12", "3.13"]
+        # Floor is 3.12 (verified by a uv sweep of 3.10-3.13 on the B5-merged
+        # tree: 3.10/3.11 fail to even import ecdat.services.exporters -- it
+        # uses a backslash inside an f-string expression, PEP 701 syntax that
+        # only parses on 3.12+). 3.14 stays continue-on-error (experimental).
+        include:
+          - { os: ubuntu-latest, python: "3.14", experimental: true }
+          - { os: windows-latest, python: "3.14", experimental: true }
+          - { os: macos-latest, python: "3.14", experimental: true }
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install (editable, dev extras)
+        run: python -m pip install -e ".[dev]"
+
+      - name: Tests
+        run: python -m pytest ecdat_core ecdat -q -m "not network and not packaging"
+        env:
+          ECDAT_ANIM: "0"
+
+  package:
+    name: package (build + twine check + packaging tests)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install build tooling
+        run: python -m pip install build twine pytest
+
+      - name: Build sdist + wheel
+        run: python -m build
+
+      - name: Twine check
+        run: python -m twine check dist/*
+
+      - name: Packaging tests
+        shell: bash
+        run: |
+          if [ -f ecdat/tests/test_app_packaging.py ]; then
+            python -m pytest ecdat/tests/test_app_packaging.py -m "packaging and not network" -q
+          else
+            echo "ecdat/tests/test_app_packaging.py is absent on this branch (Phase 94) - skipping."
+          fi
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist
+          path: dist/
+
+  install-smoke:
+    name: install-smoke (${{ matrix.os }}, ${{ matrix.method }})
+    needs: package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        method: [installer, pipx, pip]
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: dist
+          path: dist
+
+      - name: Install and smoke  -  installer (unix)
+        if: matrix.method == 'installer' && runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -eu
+          WHL="$(ls "$GITHUB_WORKSPACE"/dist/*.whl)"
+          ECDAT_SPEC="$WHL" sh "$GITHUB_WORKSPACE"/scripts/install.sh
+          export PATH="$HOME/.local/bin:$PATH"
+          WORK="$(mktemp -d)"
+          mkdir -p "$WORK/scanme"
+          printf 'import hashlib\nhashlib.md5(b"x")\n' > "$WORK/scanme/leaky.py"
+          cd "$WORK"
+          export SCAN_WORKSPACE_ROOT="$WORK" ECDAT_HOME="$WORK/.ecdat" ECDAT_ANIM=0
+          ecdat --help > /dev/null
+          ecdat scan "$WORK/scanme" -f json > out.json
+          python -c "import json; d=json.load(open('out.json', encoding='utf-8')); assert d['detections']"
+
+      - name: Install and smoke  -  installer (windows)
+        if: matrix.method == 'installer' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
+          $env:ECDAT_SPEC = (Get-ChildItem dist\*.whl).FullName
+          ./scripts/install.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $env:Path = "$env:USERPROFILE\.local\bin;$env:Path"
+          $work = Join-Path $env:RUNNER_TEMP "smoke"
+          New-Item -ItemType Directory -Force -Path "$work\scanme" | Out-Null
+          Set-Content -Path "$work\scanme\leaky.py" -Value "import hashlib`nhashlib.md5(b`"x`")" -Encoding ascii
+          Set-Location $work
+          $env:SCAN_WORKSPACE_ROOT = $work
+          $env:ECDAT_HOME = Join-Path $work ".ecdat"
+          $env:ECDAT_ANIM = "0"
+          ecdat --help | Out-Null
+          ecdat scan "$work\scanme" -f json > out.json
+          python -c "import json; d=json.load(open('out.json', encoding='utf-8')); assert d['detections']"
+
+      - name: Install and smoke  -  pipx (unix)
+        if: matrix.method == 'pipx' && runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -eu
+          python -m pip install --upgrade pip pipx > /dev/null
+          python -m pipx install --force "$GITHUB_WORKSPACE"/dist/*.whl
+          export PATH="$(python -m pipx environment --value PIPX_BIN_DIR):$PATH"
+          WORK="$(mktemp -d)"
+          mkdir -p "$WORK/scanme"
+          printf 'import hashlib\nhashlib.md5(b"x")\n' > "$WORK/scanme/leaky.py"
+          cd "$WORK"
+          export SCAN_WORKSPACE_ROOT="$WORK" ECDAT_HOME="$WORK/.ecdat" ECDAT_ANIM=0
+          ecdat --help > /dev/null
+          ecdat scan "$WORK/scanme" -f json > out.json
+          python -c "import json; d=json.load(open('out.json', encoding='utf-8')); assert d['detections']"
+
+      - name: Install and smoke  -  pipx (windows)
+        if: matrix.method == 'pipx' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          python -m pip install --upgrade pip pipx | Out-Null
+          python -m pipx install --force (Get-ChildItem dist\*.whl).FullName
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $pipxBin = python -m pipx environment --value PIPX_BIN_DIR
+          $env:Path = "$pipxBin;$env:Path"
+          $work = Join-Path $env:RUNNER_TEMP "smoke"
+          New-Item -ItemType Directory -Force -Path "$work\scanme" | Out-Null
+          Set-Content -Path "$work\scanme\leaky.py" -Value "import hashlib`nhashlib.md5(b`"x`")" -Encoding ascii
+          Set-Location $work
+          $env:SCAN_WORKSPACE_ROOT = $work
+          $env:ECDAT_HOME = Join-Path $work ".ecdat"
+          $env:ECDAT_ANIM = "0"
+          ecdat --help | Out-Null
+          ecdat scan "$work\scanme" -f json > out.json
+          python -c "import json; d=json.load(open('out.json', encoding='utf-8')); assert d['detections']"
+
+      - name: Install and smoke  -  pip (unix)
+        if: matrix.method == 'pip' && runner.os != 'Windows'
+        shell: bash
+        run: |
+          set -eu
+          VENV="$RUNNER_TEMP/ecdat-venv"
+          python -m venv "$VENV"
+          "$VENV/bin/python" -m pip install --upgrade pip > /dev/null
+          "$VENV/bin/python" -m pip install "$GITHUB_WORKSPACE"/dist/*.whl
+          WORK="$(mktemp -d)"
+          mkdir -p "$WORK/scanme"
+          printf 'import hashlib\nhashlib.md5(b"x")\n' > "$WORK/scanme/leaky.py"
+          cd "$WORK"
+          export SCAN_WORKSPACE_ROOT="$WORK" ECDAT_HOME="$WORK/.ecdat" ECDAT_ANIM=0
+          "$VENV/bin/ecdat" --help > /dev/null
+          "$VENV/bin/python" -m ecdat.cli.main --help > /dev/null
+          "$VENV/bin/ecdat" scan "$WORK/scanme" -f json > out.json
+          "$VENV/bin/python" -c "import json; d=json.load(open('out.json')); assert d['detections']"
+
+      - name: Install and smoke  -  pip (windows)
+        if: matrix.method == 'pip' && runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $venv = Join-Path $env:RUNNER_TEMP "ecdat-venv"
+          python -m venv $venv
+          & "$venv\Scripts\python.exe" -m pip install --upgrade pip | Out-Null
+          & "$venv\Scripts\python.exe" -m pip install (Get-ChildItem dist\*.whl).FullName
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          $work = Join-Path $env:RUNNER_TEMP "smoke"
+          New-Item -ItemType Directory -Force -Path "$work\scanme" | Out-Null
+          Set-Content -Path "$work\scanme\leaky.py" -Value "import hashlib`nhashlib.md5(b`"x`")" -Encoding ascii
+          Set-Location $work
+          $env:SCAN_WORKSPACE_ROOT = $work
+          $env:ECDAT_HOME = Join-Path $work ".ecdat"
+          $env:ECDAT_ANIM = "0"
+          & "$venv\Scripts\ecdat.exe" --help | Out-Null
+          & "$venv\Scripts\python.exe" -m ecdat.cli.main --help | Out-Null
+          & "$venv\Scripts\ecdat.exe" scan "$work\scanme" -f json > out.json
+          & "$venv\Scripts\python.exe" -c "import json; d=json.load(open('out.json', encoding='utf-8')); assert d['detections']"

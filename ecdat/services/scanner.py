@@ -5,24 +5,34 @@ invoke the scanner engine (:func:`ecdat_core.cli.run_scan`).  It classifies
 target strings, performs scans, and wraps the raw engine result into a
 :class:`ScanVM` view-model that renderers consume.
 
+Two call styles are supported for :func:`perform_scan`:
+
+- The original string style (``perform_scan("path", is_git_url=False,
+  save_history=True, exclude=(...))``) used by the ``scan`` command.
+- The classified-target style (``perform_scan(classify_target("path"))``)
+  which returns a :class:`ScanOutcome` bundling the result, view-model, and
+  elapsed time.
+
 Public API:
     - :data:`STAGE_LABELS` — human-readable stage names for progress reporting.
     - :class:`ScanError` — user-facing error with exit code.
     - :class:`Target` — classified scan target (local path or git URL).
     - :func:`classify_target` — classify and validate a raw target string.
     - :class:`ScanOutcome` — the result of a scan operation.
-    - :func:`perform_scan` — run a scan and return the outcome.
+    - :func:`perform_scan` — run a scan and return the outcome/result.
 """
 
 from __future__ import annotations
 
 import time
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 from urllib.parse import urlparse
 
 from ecdat_core.cli import run_scan
+from ecdat_core.models import ScanResult
 from ecdat.services.viewmodel import ScanVM, build_scan_vm
 
 # ---------------------------------------------------------------------------
@@ -31,10 +41,13 @@ from ecdat.services.viewmodel import ScanVM, build_scan_vm
 
 STAGE_LABELS: dict[str, str] = {
     "clone": "Cloning repository",
+    "ingest": "Indexing files",
     "scan": "Scanning files",
     "detect": "Detecting cryptographic artefacts",
     "assess": "Assessing quantum risk",
     "recommend": "Generating recommendations",
+    "assemble": "Assembling result",
+    "done": "Complete",
 }
 
 # ---------------------------------------------------------------------------
@@ -181,7 +194,7 @@ def _classify_local(raw: str) -> Target:
 # ---------------------------------------------------------------------------
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, slots=True)
 class ScanOutcome:
     """The result of a scan operation.
 
@@ -189,47 +202,43 @@ class ScanOutcome:
         result: The raw engine ``ScanResult`` returned by ``run_scan``.
         vm: The renderer-ready :class:`ScanVM` view-model.
         duration_s: Wall-clock scan duration in seconds.
+        record_id: The ``scan_id`` persisted to history, or ``None`` when the
+            scan was not saved (``save_history=False`` or a write failure).
+        warnings: Non-fatal problems encountered while persisting history.
     """
 
-    __slots__ = ("result", "vm", "duration_s")
-
-    result: "ScanResult"
+    result: ScanResult
     vm: ScanVM
     duration_s: float
+    record_id: Optional[str] = None
+    warnings: tuple[str, ...] = ()
 
 
-def perform_scan(
+def _run_engine(
     target: Target,
     *,
-    force_git: bool = False,
-    label: Optional[str] = None,
-) -> ScanOutcome:
-    """Run a scan against an already-classified :class:`Target`.
+    exclude: Sequence[str] = (),
+    on_progress=None,
+) -> ScanResult:
+    """Invoke the engine for *target*, mapping failures to :class:`ScanError`.
 
-    Args:
-        target: The classified scan target.
-        force_git: Unused — the target is already classified.  Accepted for
-            signature compatibility with the CLI layer.
-        label: Optional display label for the scan VM.  Falls back to
-            ``target.display`` when ``None``.
-
-    Returns:
-        A :class:`ScanOutcome` bundling the engine result, view-model, and
-        elapsed time.
-
-    Raises:
-        ScanError: exit_code=2 for git-URL validation errors (the engine's
-            ``validate_git_url`` raises ``ValueError``, which is mapped to a
-            usage error).  exit_code=3 for any other unexpected failure.
-        KeyboardInterrupt: Propagated directly — never caught.
+    Optional keyword arguments are only forwarded when set, so the call for a
+    plain scan is exactly ``run_scan(path, sandboxed=False)`` (git:
+    ``run_scan(url, is_git_url=True)``).
     """
-    start = time.monotonic()
+    extra: dict = {}
+    if exclude:
+        extra["exclude"] = exclude
+    if on_progress is not None:
+        extra["on_progress"] = on_progress
 
     try:
         if target.kind == "git":
-            result = run_scan(target.value, is_git_url=True)
-        else:
-            result = run_scan(target.value, sandboxed=False)
+            return run_scan(target.value, is_git_url=True, **extra)
+        # CLI/TUI scans treat the invoking user as the trust boundary.
+        return run_scan(target.value, sandboxed=False, **extra)
+    except ScanError:
+        raise
     except ValueError as exc:
         # Engine validation errors from git-URL checks (validate_git_url in
         # ingestion.py raises ValueError) — these are usage errors.
@@ -242,7 +251,97 @@ def perform_scan(
             exit_code=3,
         ) from exc
 
-    duration_s = time.monotonic() - start
-    vm = build_scan_vm(result, target=label or target.display, duration_s=duration_s)
 
-    return ScanOutcome(result=result, vm=vm, duration_s=duration_s)
+def perform_scan(
+    target: Union[str, Target],
+    *,
+    is_git_url: bool = False,
+    save_history: bool = True,
+    exclude: Sequence[str] = (),
+    force_git: bool = False,
+    label: Optional[str] = None,
+    on_progress=None,
+) -> Union[ScanResult, ScanOutcome]:
+    """Run an ECDAT scan against *target*.
+
+    Two call styles are supported:
+
+    - **String style** (``ecdat scan``): pass a raw path/URL string and the
+      result is a :class:`~ecdat_core.models.ScanResult`; with
+      ``save_history=True`` the result is persisted best-effort.
+    - **Classified style** (``ecdat demo``, the TUI): pass a :class:`Target`
+      from :func:`classify_target` and the result is a :class:`ScanOutcome`
+      wrapping the engine result, the :class:`ScanVM`, and the duration.
+
+    Args:
+        target: A raw path/URL string, or a classified :class:`Target`.
+        is_git_url: (string style) Treat *target* as a git URL.
+        save_history: (string style) Persist the result to scan history.
+        exclude: ``fnmatch`` patterns passed to the scanner.
+        force_git: Unused — retained for signature compatibility.
+        label: (classified style) Display label for the scan VM.
+        on_progress: Optional engine progress callback.
+
+    Returns:
+        A :class:`ScanResult` for the string style, or a :class:`ScanOutcome`
+        for the classified style.
+
+    Raises:
+        ScanError: exit_code=2 for git-URL/validation errors, 3 for runtime
+            failures.
+    """
+    if isinstance(target, Target):
+        start = time.monotonic()
+        result = _run_engine(target, exclude=exclude, on_progress=on_progress)
+        duration_s = time.monotonic() - start
+        vm = build_scan_vm(
+            result, target=label or target.display, duration_s=duration_s
+        )
+        record_id, warnings = _persist_history(result, save_history)
+        return ScanOutcome(
+            result=result,
+            vm=vm,
+            duration_s=duration_s,
+            record_id=record_id,
+            warnings=warnings,
+        )
+
+    # --- string style -----------------------------------------------------
+    classified = classify_target(target, force_git=is_git_url)
+    result = _run_engine(classified, exclude=exclude, on_progress=on_progress)
+
+    _persist_history(result, save_history)
+
+    return result
+
+
+def _persist_history(
+    result: ScanResult, save_history: bool
+) -> tuple[Optional[str], tuple[str, ...]]:
+    """Persist *result* to history, never failing the scan on an I/O error.
+
+    The TUI and ``ecdat demo`` scan through the classified-:class:`Target`
+    branch, so history must be written there too — not only on the string
+    branch used by ``ecdat scan``.  A write failure is reported as a warning
+    rather than raised, so a scan is never lost because history was
+    unwritable.
+
+    Args:
+        result: The completed engine result to persist.
+        save_history: When ``False``, do nothing and return ``(None, ())``.
+
+    Returns:
+        ``(record_id, warnings)`` — the persisted ``scan_id`` (or ``None``),
+        and a tuple of non-fatal warning strings.
+    """
+    if not save_history:
+        return None, ()
+
+    try:
+        from ecdat.services.history import save_scan as _history_save
+
+        _history_save(result)
+    except Exception as exc:  # noqa: BLE001 - history must never fail a scan
+        return None, (f"Warning: failed to save scan to history: {exc}",)
+
+    return result.scan_id, ()
