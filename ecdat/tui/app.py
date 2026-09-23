@@ -113,7 +113,20 @@ class EcdatApp(App[int]):
         from ecdat.tui.screens.splash import SplashScreen
 
         self.push_screen(HomeScreen())
-        if self.show_splash and self._animations_on():
+        # Only push the splash when nothing else is about to be pushed on top
+        # of it in this same on_mount tick. A demo run or an auto-start scan
+        # pushes a second screen immediately, which would leave the splash
+        # buried; its auto-dismiss timer would then fire while that screen is
+        # on top. (``SplashScreen`` additionally refuses to pop a screen it no
+        # longer owns, but not pushing it at all is the cleaner precondition.)
+        launches_second_screen = self.demo or (
+            self.auto_start and self.initial_target
+        )
+        if (
+            self.show_splash
+            and self._animations_on()
+            and not launches_second_screen
+        ):
             # Pushed last so it sits on top of Home and dismisses to reveal it.
             self.push_screen(SplashScreen())
 

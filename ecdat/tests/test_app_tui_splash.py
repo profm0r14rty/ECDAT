@@ -18,10 +18,12 @@ from typing import Optional
 import pytest
 from textual.app import ComposeResult
 from textual.screen import Screen
+from textual.widgets import Header, Static
 
 import ecdat.tui.screens.splash as splash_mod
 from ecdat.tui.app import EcdatApp
 from ecdat.tui.screens.home import HomeScreen
+from ecdat.tui.screens.results import ResultsScreen
 from ecdat.tui.screens.splash import SplashScreen
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -47,6 +49,15 @@ class _Overlay(Screen[None]):
 
     def compose(self) -> ComposeResult:
         yield from ()
+
+
+class _HeaderOverlay(Screen[None]):
+    """An overlay that mounts a ``Header`` — the widget whose ``HeaderTitle``
+    lookup blew up (``NoMatches``) when the C9b race detached it mid-mount."""
+
+    def compose(self) -> ComposeResult:
+        yield Header()
+        yield Static("x")
 
 
 @pytest.fixture
@@ -105,13 +116,19 @@ async def test_keypress_then_timer_is_idempotent(anim_on) -> None:
 
 @pytest.mark.asyncio
 async def test_dismiss_while_not_top_does_not_raise(anim_on) -> None:
-    """A second dismiss on a screen that outlived its own pop must not crash.
+    """A dismiss on a screen that no longer owns the stack must not crash.
 
-    When the splash sits under another screen (as ``ecdat demo --tui`` pushes
-    ``ScanScreen`` on top of it), the timer's ``dismiss()`` resolves the
-    splash's result future but pops the *overlay*, leaving the splash alive
-    with a settled callback.  A later keypress would then re-resolve that
-    future — the original ``InvalidStateError``.
+    When the splash sits under another screen, ``_dismiss`` stops the timer and
+    sets the dismissed flag but deliberately does NOT call ``dismiss()`` — it
+    refuses to pop a screen it does not own.  The overlay therefore legitimately
+    remains, and a second dismiss (keypress) is a harmless no-op.
+
+    NOTE (Task C9b): the final stack assertion changed from ``[Screen, Home,
+    Splash]`` to include the surviving ``_Overlay``.  The old expectation
+    encoded the very wrong-screen pop this task removes: the buried splash's
+    ``dismiss()`` used to pop the overlay on top of it.  Keeping the splash from
+    popping a screen it does not own and asserting the overlay was popped are
+    mutually exclusive, so the assertion was corrected rather than the fix.
     """
     app = EcdatApp(show_splash=True)
     async with app.run_test(size=_SIZE) as pilot:
@@ -129,8 +146,61 @@ async def test_dismiss_while_not_top_does_not_raise(anim_on) -> None:
         splash.on_key(_KeyEvent())
         await pilot.pause()
 
-        assert _stack(app) == ["Screen", _HOME, _SPLASH]
+        assert _stack(app) == ["Screen", _HOME, _SPLASH, "_Overlay"]
         assert splash._dismissed is True
+
+
+@pytest.mark.asyncio
+async def test_dismiss_while_buried_does_not_pop_wrong_screen(anim_on) -> None:
+    """The C9b regression: a buried splash must not tear down the screen above it.
+
+    ``ecdat demo --tui`` pushes ``ScanScreen`` on top of the splash in the same
+    ``on_mount`` tick, so the splash's auto-dismiss timer fires while it is
+    buried.  The old code called ``dismiss()`` unconditionally, which popped the
+    *overlay* — detaching a screen mid-mount and surfacing as an intermittent
+    ``NoMatches: No nodes match 'HeaderTitle' on Header()``.  The overlay here
+    mounts a ``Header`` so the same failure mode is exercised; the block simply
+    exiting without Textual re-raising any exception is the assertion.
+    """
+    app = EcdatApp(show_splash=True)
+    async with app.run_test(size=_SIZE) as pilot:
+        await pilot.pause()
+        splash = app.screen
+        assert isinstance(splash, SplashScreen)
+
+        app.push_screen(_HeaderOverlay())
+        await pilot.pause()
+        assert _stack(app)[-1] == "_HeaderOverlay"
+
+        splash._auto_dismiss()
+        await pilot.pause()
+
+        assert splash._dismissed is True
+        assert "_HeaderOverlay" in _stack(app)
+
+
+@pytest.mark.asyncio
+async def test_demo_launch_never_pushes_splash(anim_on) -> None:
+    """A demo launch pushes a second screen immediately, so no splash is pushed.
+
+    Pushing the splash only to bury it under ``ScanScreen`` is exactly the C9b
+    race; the fix skips it at the source, so the splash class must never appear
+    in the stack.
+    """
+    app = EcdatApp(demo=True, show_splash=True)
+    async with app.run_test(size=_SIZE) as pilot:
+        await pilot.pause()
+        assert all(
+            not isinstance(screen, SplashScreen) for screen in app.screen_stack
+        )
+        await wait_until(
+            pilot, lambda: isinstance(app.screen, ResultsScreen), timeout=30.0
+        )
+        # Let the freshly-pushed Results screen finish mounting before exit.
+        await pilot.pause(0.3)
+        assert all(
+            not isinstance(screen, SplashScreen) for screen in app.screen_stack
+        )
 
 
 @pytest.mark.asyncio

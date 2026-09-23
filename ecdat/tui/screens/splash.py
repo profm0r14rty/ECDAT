@@ -79,19 +79,27 @@ class SplashScreen(Screen[None]):
             self._auto_timer = None
 
     def _dismiss(self) -> None:
-        """Leave the splash exactly once.
+        """Leave the splash exactly once, and only while it owns the screen.
 
         The timer and a manual key/click can both request dismissal for the
         same screen; the first one to run wins and every later call returns
-        immediately.  A second ``dismiss()`` would re-resolve an already
-        settled result future (``InvalidStateError``) or pop an unrelated
-        screen, so the guard is not merely defensive.
+        immediately.  The actual pop is deferred one refresh so the decision is
+        made against the screen stack *after* everything already queued for
+        this tick has been pushed: if something was placed on top of the
+        splash (the demo/auto-start launch), ``self.app.screen`` is no longer
+        this screen and we must not call ``dismiss()`` — that would resolve an
+        already-settled future (``InvalidStateError``) or pop the wrong screen.
         """
         if self._dismissed:
             return
         self._dismissed = True
         self._stop_auto_timer()
-        self.dismiss(None)
+        self.call_after_refresh(self._dismiss_if_top)
+
+    def _dismiss_if_top(self) -> None:
+        """Pop the splash, but only when it is still the top screen."""
+        if self.app.screen is self:
+            self.dismiss(None)
 
     def _auto_dismiss(self) -> None:
         if self.is_current:
