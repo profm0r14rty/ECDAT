@@ -7,6 +7,8 @@ Public API:
     - :data:`ECDAT_DARK` / :data:`ECDAT_LIGHT` — the theme objects.
     - :data:`THEME_NAMES` — their names, in cycle order.
     - :func:`register_themes` — register both on an app.
+    - :func:`risk_variable_defaults` — the ``$risk-*`` CSS variables, for
+      apps that must resolve them under any active theme.
 """
 
 from __future__ import annotations
@@ -65,6 +67,21 @@ ECDAT_LIGHT = Theme(
 THEME_NAMES = (ECDAT_DARK.name, ECDAT_LIGHT.name)
 
 
+def risk_variable_defaults() -> dict[str, str]:
+    """Return the ``$risk-*`` CSS variables, updated from the active palette.
+
+    Returns a fresh mapping each call so callers can mutate their copy freely.
+    Only the five risk variables are provided here; Textual supplies the rest
+    (``$primary``, ``$background``, ...) from the active theme's colour system.
+
+    The ECDAT themes define these variables themselves (in ``variables``), and
+    ``get_css_variables`` merges theme variables over these defaults — so this
+    is the fallback that keeps ``ecdat.tcss`` parseable even when a Textual
+    built-in theme (which has no ``risk-*`` variables) is active.
+    """
+    return dict(_RISK_VARIABLES)
+
+
 def register_themes(app) -> None:
     """Register both ECDAT themes on *app*."""
     app.register_theme(ECDAT_DARK)
@@ -76,4 +93,5 @@ __all__ = [
     "ECDAT_LIGHT",
     "THEME_NAMES",
     "register_themes",
+    "risk_variable_defaults",
 ]

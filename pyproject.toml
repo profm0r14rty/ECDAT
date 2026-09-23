@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ecdat"
-version = "0.2.0"
+version = "0.3.0rc1"
 description = "Cryptographic discovery and post-quantum readiness scanner — CLI with a gradient ASCII banner and an animated 3D globe (CBOM, CycloneDX 1.6)"
 readme = {file = "PYPI_README.md", content-type = "text/markdown"}
 requires-python = ">=3.12"

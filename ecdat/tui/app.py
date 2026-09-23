@@ -30,7 +30,7 @@ from textual.widgets import Static
 from rich.text import Text
 
 from ecdat.services.settings import try_save_settings
-from ecdat.tui.theme import THEME_NAMES, register_themes
+from ecdat.tui.theme import THEME_NAMES, register_themes, risk_variable_defaults
 
 # The console entry point and Textual's own default.
 _TITLE = "ECDAT"
@@ -199,6 +199,23 @@ class EcdatApp(App[int]):
         return load_settings().theme
 
     # -- theme --------------------------------------------------------------
+
+    def get_theme_variable_defaults(self) -> dict[str, str]:
+        """Make the ``$risk-*`` variables resolve under *any* active theme.
+
+        Textual builds the stylesheet's variable set inside ``App.__init__``
+        (before the ECDAT themes are registered or the saved theme applied),
+        and re-resolves it on every theme switch.  The base default is empty,
+        and Textual's built-in themes (``textual-dark``/``textual-light``)
+        define no ``risk-*`` variables — so a saved built-in theme (or
+        cycling ``t`` into one) would raise ``UnresolvedVariableError`` at
+        parse time.  Supplying the risk colours here means ``ecdat.tcss``
+        parses under every theme; each theme's own ``variables`` still take
+        precedence over these defaults when it is active.
+        """
+        defaults = dict(super().get_theme_variable_defaults())
+        defaults.update(risk_variable_defaults())
+        return defaults
 
     def action_cycle_theme(self) -> None:
         """Cycle through every available theme and persist the choice."""
