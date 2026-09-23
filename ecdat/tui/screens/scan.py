@@ -21,7 +21,7 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import Screen
-from textual.widgets import Footer, Header, ProgressBar, RichLog, Static
+from textual.widgets import Footer, ProgressBar, RichLog, Static
 
 from ecdat.services import demo
 from ecdat.services import scanner
@@ -29,6 +29,7 @@ from ecdat.services.scanner import ScanError, ScanOutcome
 from ecdat.services.settings import load_settings
 from ecdat.tui.screens.home import HomeScreen
 from ecdat.tui.widgets.art_view import ArtView
+from ecdat.tui.widgets.header import SafeHeader
 from ecdat.ui import motion
 from ecdat.ui.theme import PALETTE, strip_control_chars
 from ecdat_core.progress import ScanCancelled, ScanProgress
@@ -92,7 +93,7 @@ class ScanScreen(Screen[None]):
     # -- composition --------------------------------------------------------
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield SafeHeader()
         yield Static("", id="scan-title")
         with Horizontal(classes="scan-body"):
             with Vertical(id="scan-left"):

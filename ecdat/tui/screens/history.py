@@ -22,11 +22,12 @@ from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Horizontal, Vertical
 from textual.screen import ModalScreen, Screen
-from textual.widgets import Button, DataTable, Footer, Header, Label, Static
+from textual.widgets import Button, DataTable, Footer, Label, Static
 
 from ecdat.services.history import HistoryError, delete_scan, list_scans
 from ecdat.services.scanner import ScanOutcome
 from ecdat.services.viewmodel import build_scan_vm
+from ecdat.tui.widgets.header import SafeHeader
 from ecdat.ui.theme import strip_control_chars
 from ecdat_core.models import ScanResult
 
@@ -109,7 +110,7 @@ class HistoryScreen(Screen[None]):
     # -- composition --------------------------------------------------------
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield SafeHeader()
         with Vertical(id="history-body"):
             yield Static("Scan history", id="history-title")
             yield DataTable(id=_TABLE_ID, zebra_stripes=True)

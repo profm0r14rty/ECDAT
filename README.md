@@ -5,7 +5,7 @@
 [![Downloads](https://img.shields.io/pypi/dm/ecdat?color=3ddc97&label=downloads)](https://pypi.org/project/ecdat/)
 [![License: MIT](https://img.shields.io/github/license/profm0r14rty/ECDAT?color=3ddc97)](https://github.com/profm0r14rty/ECDAT/blob/main/LICENSE)
 [![CI](https://github.com/profm0r14rty/ECDAT/actions/workflows/ecdat-ci.yml/badge.svg)](https://github.com/profm0r14rty/ECDAT/actions/workflows/ecdat-ci.yml)
-[![SIH 2026](https://img.shields.io/badge/SIH%202026-Winner%20🏆-gold)](https://github.com/profm0r14rty/ECDAT)
+[![SIH 2026](https://img.shields.io/badge/SIH%202026%20Internals-1st%20Place%20🏆-gold)](https://github.com/profm0r14rty/ECDAT)
 
 ECDAT is a Cryptography Bill of Materials (CBOM) scanner for post-quantum readiness assessment. It discovers cryptographic artefacts in source code, assesses their quantum-computing risk using Mosca's algorithm, and recommends NIST post-quantum replacements, outputting a CycloneDX 1.6 CBOM report.
 

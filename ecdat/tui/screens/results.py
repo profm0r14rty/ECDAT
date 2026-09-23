@@ -20,12 +20,13 @@ from textual.binding import Binding
 from textual.containers import Grid, Horizontal, Vertical, VerticalScroll
 from textual.css.query import NoMatches
 from textual.screen import Screen
-from textual.widgets import Footer, Header, Static, TabbedContent, TabPane
+from textual.widgets import Footer, Static, TabbedContent, TabPane
 
 from ecdat.services.scanner import ScanOutcome
 from ecdat.services.settings import load_settings
 from ecdat.tui.widgets.file_tree import FileTreePane
 from ecdat.tui.widgets.findings_table import FindingsPane
+from ecdat.tui.widgets.header import SafeHeader
 from ecdat.tui.widgets.priority_list import PriorityList
 from ecdat.tui.widgets.recommendations import RecommendationsPane
 from ecdat.tui.widgets.risk_chart import RiskChart
@@ -66,7 +67,7 @@ class ResultsScreen(Screen[None]):
     # -- composition --------------------------------------------------------
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield SafeHeader()
         with TabbedContent(id="results-tabs", initial="tab-overview"):
             with TabPane("Overview", id="tab-overview"):
                 with VerticalScroll(id="overview-body"):

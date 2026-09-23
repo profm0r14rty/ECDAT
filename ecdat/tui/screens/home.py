@@ -20,13 +20,14 @@ from textual.binding import Binding
 from textual.containers import Horizontal, Vertical, VerticalScroll
 from textual.screen import Screen
 from textual.validation import ValidationResult, Validator
-from textual.widgets import Footer, Header, Input, OptionList, Static
+from textual.widgets import Footer, Input, OptionList, Static
 from textual.widgets.option_list import Option
 
 from ecdat.services.scanner import ScanError, classify_target
 from ecdat.tui.screens.pick_dir import PickDirScreen
 from ecdat.tui.widgets.art_view import ArtView
 from ecdat.tui.widgets.banner import BannerWidget
+from ecdat.tui.widgets.header import SafeHeader
 from ecdat.ui.theme import strip_control_chars
 
 # Breakpoints for the responsive hero.
@@ -72,7 +73,7 @@ class HomeScreen(Screen[None]):
     ]
 
     def compose(self) -> ComposeResult:
-        yield Header()
+        yield SafeHeader()
         with VerticalScroll(id="home-body"):
             with Horizontal(id="home-hero"):
                 with Vertical(id="home-left"):
